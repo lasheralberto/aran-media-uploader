@@ -5,9 +5,10 @@ import {
     ref, 
     uploadBytesResumable, 
     getDownloadURL, 
-    listAll,
+    list,
     type UploadTaskSnapshot,
-    type StorageReference
+    type StorageReference,
+    type ListResult
 } from "firebase/storage";
 import { MediaFile } from '../types';
 
@@ -45,8 +46,9 @@ export const uploadFile = (
     onProgress: (progress: number) => void
 ): Promise<void> => {
     return new Promise((resolve, reject) => {
-        // Using a timestamp to help ensure file names are unique
-        const fileRef = ref(storage, `media/${Date.now()}-${file.name}`);
+        // Using a reverse timestamp in the name to ensure the newest files are listed first by Firebase.
+        const fileName = `${(Number.MAX_SAFE_INTEGER - Date.now())}-${file.name}`;
+        const fileRef = ref(storage, `media/${fileName}`);
         const uploadTask = uploadBytesResumable(fileRef, file);
 
         uploadTask.on('state_changed', 
@@ -65,9 +67,21 @@ export const uploadFile = (
     });
 };
 
-export const listAllFiles = async (): Promise<MediaFile[]> => {
+
+export interface ListMediaResult {
+    files: MediaFile[];
+    nextPageToken?: string;
+}
+
+const PAGE_SIZE = 21; // A multiple of 3 for the grid layout
+
+export const listMediaFiles = async (pageToken?: string): Promise<ListMediaResult> => {
     try {
-        const listResponse = await listAll(mediaFolderRef);
+        const listResponse: ListResult = await list(mediaFolderRef, {
+            maxResults: PAGE_SIZE,
+            pageToken: pageToken,
+        });
+
         const mediaFilesPromises = listResponse.items.map(async (itemRef: StorageReference) => {
             const url = await getDownloadURL(itemRef);
             return {
@@ -77,13 +91,16 @@ export const listAllFiles = async (): Promise<MediaFile[]> => {
             };
         });
 
-        const settledPromises = await Promise.all(mediaFilesPromises);
-        // Sort by name descending to show the newest files first
-        return settledPromises.sort((a, b) => b.name.localeCompare(a.name));
+        const files = await Promise.all(mediaFilesPromises);
+
+        return {
+            files,
+            nextPageToken: listResponse.nextPageToken,
+        };
 
     } catch (error) {
         console.error("Error listing files:", error);
         alert("Could not list files. Please check your Firebase Storage setup and ensure security rules allow public read access. (e.g., allow read: if true;)");
-        return [];
+        return { files: [], nextPageToken: undefined };
     }
 };

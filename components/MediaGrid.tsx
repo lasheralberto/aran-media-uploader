@@ -7,9 +7,11 @@ interface MediaGridProps {
     mediaFiles: MediaFile[];
     isLoading: boolean;
     onItemClick: (file: MediaFile) => void;
+    lastElementRef: (node: HTMLDivElement) => void;
+    hasMore: boolean;
 }
 
-const MediaGrid: React.FC<MediaGridProps> = ({ mediaFiles, isLoading, onItemClick }) => {
+const MediaGrid: React.FC<MediaGridProps> = ({ mediaFiles, isLoading, onItemClick, lastElementRef, hasMore }) => {
     if (isLoading) {
         return (
             <div className="flex justify-center items-center h-64">
@@ -29,9 +31,17 @@ const MediaGrid: React.FC<MediaGridProps> = ({ mediaFiles, isLoading, onItemClic
 
     return (
         <div className="grid grid-cols-3 gap-0.5">
-            {mediaFiles.map((file) => (
-                <MediaItem key={file.name} file={file} onClick={() => onItemClick(file)} />
-            ))}
+            {mediaFiles.map((file, index) => {
+                const isLastElement = mediaFiles.length === index + 1;
+                if (isLastElement && hasMore) {
+                    return (
+                        <div ref={lastElementRef} key={file.name}>
+                            <MediaItem file={file} onClick={() => onItemClick(file)} />
+                        </div>
+                    );
+                }
+                return <MediaItem key={file.name} file={file} onClick={() => onItemClick(file)} />;
+            })}
         </div>
     );
 };

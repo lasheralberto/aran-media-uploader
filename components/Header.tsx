@@ -1,4 +1,5 @@
 import React from 'react';
+import { HeartIcon } from './Icons';
 
 interface HeaderProps {
   postCount: number;
@@ -11,14 +12,9 @@ const Header: React.FC<HeaderProps> = ({ postCount }) => {
         <div className="flex items-center gap-8">
           {/* Foto de perfil estilo Instagram */}
           <div className="p-[2px] rounded-full bg-gradient-to-tr from-pink-500 via-red-500 to-yellow-500">
-            <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
-            <img
-                src="/assets/profile.jpg"
-                alt="Perfil"
-                className="w-full h-full object-cover"
-            />
+            <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100">
+                <img src="assets/profile.jpg" alt="Foto de perfil de la boda" className="w-full h-full object-cover" />
             </div>
-
           </div>
 
           {/* Stats al lado, estilo Instagram */}
