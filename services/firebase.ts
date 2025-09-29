@@ -6,6 +6,8 @@ import {
     uploadBytesResumable, 
     getDownloadURL, 
     list,
+    getBlob,
+    deleteObject,
     type UploadTaskSnapshot,
     type StorageReference,
     type ListResult
@@ -104,6 +106,11 @@ export const getProfileImageUrl = async (): Promise<string | null> => {
     }
 };
 
+export const downloadFileBlob = async (fileName: string): Promise<Blob> => {
+    const fileRef = ref(storage, `media/${fileName}`);
+    return await getBlob(fileRef);
+};
+
 
 export interface ListMediaResult {
     files: MediaFile[];
@@ -141,5 +148,15 @@ export const listMediaFiles = async (pageToken?: string): Promise<ListMediaResul
         console.error("Error listing files:", error);
         alert("Could not list files. Please check your Firebase Storage setup and ensure security rules allow public read access. (e.g., allow read: if true;)");
         return { files: [], nextPageToken: undefined };
+    }
+};
+
+export const deleteFile = async (fileName: string): Promise<void> => {
+    const fileRef = ref(storage, `media/${fileName}`);
+    try {
+        await deleteObject(fileRef);
+    } catch (error) {
+        console.error(`Error deleting file ${fileName}:`, error);
+        throw error;
     }
 };

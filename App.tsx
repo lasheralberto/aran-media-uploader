@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { listMediaFiles, uploadFile } from './services/firebase';
+import { listMediaFiles, uploadFile, deleteFile } from './services/firebase';
 import { MediaFile } from './types';
 import Header from './components/Header';
 import MediaGrid from './components/MediaGrid';
@@ -7,6 +7,8 @@ import UploadProgress from './components/UploadProgress';
 import BottomNav from './components/BottomNav';
 import MediaModal from './components/MediaModal';
 import Spinner from './components/Spinner';
+import MasterKeyModal from './components/MasterKeyModal';
+import ConfirmModal from './components/ConfirmModal';
 
 const App: React.FC = () => {
     const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
@@ -21,6 +23,14 @@ const App: React.FC = () => {
     const [hasMore, setHasMore] = useState<boolean>(true);
     const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
     
+    // Admin state
+    const [isAdmin, setIsAdmin] = useState<boolean>(false);
+    const [isMasterKeyModalOpen, setIsMasterKeyModalOpen] = useState<boolean>(false);
+
+    // Delete confirmation state
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState<boolean>(false);
+    const [fileToDelete, setFileToDelete] = useState<string | null>(null);
+
     const loadMoreMedia = useCallback(async () => {
         if (!nextPageToken) {
             setHasMore(false);
@@ -38,10 +48,7 @@ const App: React.FC = () => {
     }, [nextPageToken]);
 
     // Observer for infinite scroll
-    // Fix: `useRef` was called with 0 arguments, but 1 was expected. Initializing with `null`.
     const observer = useRef<IntersectionObserver | null>(null);
-    // Fix: Add `loadMoreMedia` to dependency array to avoid stale closures.
-    // Fix: The ref callback can receive `null` when the component unmounts. The type should be updated to handle this case.
     const lastElementRef = useCallback((node: HTMLDivElement | null) => {
         if (isLoadingMore) return;
         if (observer.current) observer.current.disconnect();
@@ -89,7 +96,6 @@ const App: React.FC = () => {
 
         try {
             await Promise.all(uploadPromises);
-            // After upload, fetch the first page again to show new media at the top
             await fetchInitialMedia();
         } catch (error) {
             alert('¡Ups! Algo ha fallado en la subida. ¿Quizás la foto es demasiado buena? Revisa la consola.');
@@ -115,13 +121,58 @@ const App: React.FC = () => {
         setSelectedMedia(null);
     };
 
+    const handleOpenMasterKeyModal = () => {
+        setIsMasterKeyModalOpen(true);
+    };
+
+    const handleCloseMasterKeyModal = () => {
+        setIsMasterKeyModalOpen(false);
+    };
+
+    const handleMasterKeySubmit = (key: string) => {
+        if (key === 'bodorrio') {
+            setIsAdmin(true);
+            setIsMasterKeyModalOpen(false);
+            alert('Modo administrador activado.');
+        } else {
+            alert('Clave incorrecta.');
+        }
+    };
+
+    const handleRequestDelete = (fileName: string) => {
+        setFileToDelete(fileName);
+        setIsConfirmModalOpen(true);
+    };
+
+    const handleCancelDelete = () => {
+        setIsConfirmModalOpen(false);
+        setFileToDelete(null);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!fileToDelete) return;
+        try {
+            await deleteFile(fileToDelete);
+            setMediaFiles(prev => prev.filter(file => file.name !== fileToDelete));
+            if (selectedMedia?.name === fileToDelete) {
+                setSelectedMedia(null);
+            }
+            alert('Archivo eliminado correctamente.');
+        } catch (error) {
+            console.error("Error deleting file:", error);
+            alert('No se pudo eliminar el archivo.');
+        } finally {
+            handleCancelDelete();
+        }
+    };
+
     const totalProgress = Object.values(uploadProgress).length > 0
         ? Object.values(uploadProgress).reduce((acc: number, curr: number) => acc + curr, 0) / Object.values(uploadProgress).length
         : 0;
 
     return (
         <div className="min-h-screen font-sans pb-16">
-            <Header postCount={mediaFiles.length} />
+            <Header postCount={mediaFiles.length} onOpenOptions={handleOpenMasterKeyModal} />
             
             <main className="container mx-auto">
                 {isUploading && <UploadProgress progress={totalProgress} />}
@@ -141,7 +192,26 @@ const App: React.FC = () => {
             
             <BottomNav onUploadClick={handleUploadClick} />
 
-            <MediaModal file={selectedMedia} onClose={handleCloseModal} />
+            <MediaModal 
+                file={selectedMedia} 
+                onClose={handleCloseModal} 
+                isAdmin={isAdmin}
+                onDelete={handleRequestDelete}
+            />
+
+            <MasterKeyModal 
+                isOpen={isMasterKeyModalOpen}
+                onClose={handleCloseMasterKeyModal}
+                onSubmit={handleMasterKeySubmit}
+            />
+            
+            <ConfirmModal
+                isOpen={isConfirmModalOpen}
+                onClose={handleCancelDelete}
+                onConfirm={handleConfirmDelete}
+                title="Confirmar eliminación"
+                message={`¿Estás seguro de que quieres eliminar este archivo? Esta acción no se puede deshacer.`}
+            />
 
             <input
                 type="file"
