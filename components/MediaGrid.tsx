@@ -1,21 +1,23 @@
 import React from 'react';
 import { MediaFile } from '../types';
 import MediaItem from './MediaItem';
-import Spinner from './Spinner';
+import SkeletonItem from './SkeletonItem';
 
 interface MediaGridProps {
     mediaFiles: MediaFile[];
     isLoading: boolean;
     onItemClick: (file: MediaFile) => void;
-    lastElementRef: (node: HTMLDivElement) => void;
+    lastElementRef: (node: HTMLDivElement | null) => void;
     hasMore: boolean;
 }
 
 const MediaGrid: React.FC<MediaGridProps> = ({ mediaFiles, isLoading, onItemClick, lastElementRef, hasMore }) => {
     if (isLoading) {
         return (
-            <div className="flex justify-center items-center h-64">
-                <Spinner />
+            <div className="grid grid-cols-3 gap-0.5">
+                {Array.from({ length: 9 }).map((_, index) => (
+                    <SkeletonItem key={index} />
+                ))}
             </div>
         );
     }
