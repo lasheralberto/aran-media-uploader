@@ -1,0 +1,5 @@
+{
+  "name": "Minimalist Media Uploader",
+  "description": "A simple and minimalist web application to upload photos and videos to Firebase Storage and view them in a gallery. No authentication required.",
+  "requestFramePermissions": []
+}
