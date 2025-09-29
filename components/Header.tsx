@@ -6,9 +6,10 @@ import { getProfileImageUrl } from '../services/firebase';
 interface HeaderProps {
   postCount: number;
   onOpenOptions: () => void;
+  isVisible: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ postCount, onOpenOptions }) => {
+const Header: React.FC<HeaderProps> = ({ postCount, onOpenOptions, isVisible }) => {
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCopied, setIsCopied] = useState(false);
@@ -50,7 +51,7 @@ const Header: React.FC<HeaderProps> = ({ postCount, onOpenOptions }) => {
   };
 
   return (
-    <header className="bg-white/80 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-200">
+    <header className={`bg-white/80 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-200 transition-transform duration-300 ease-in-out ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}>
       <div className="container mx-auto px-4 py-5 relative">
         <button 
             onClick={onOpenOptions}

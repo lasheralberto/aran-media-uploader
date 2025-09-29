@@ -6,7 +6,6 @@ import {
     uploadBytesResumable, 
     getDownloadURL, 
     list,
-    getBlob,
     deleteObject,
     type UploadTaskSnapshot,
     type StorageReference,
@@ -106,9 +105,35 @@ export const getProfileImageUrl = async (): Promise<string | null> => {
     }
 };
 
-export const downloadFileBlob = async (fileName: string): Promise<Blob> => {
-    const fileRef = ref(storage, `media/${fileName}`);
-    return await getBlob(fileRef);
+export const downloadFileBlob = (fileName: string): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+        const fileRef = ref(storage, `media/${fileName}`);
+        
+        getDownloadURL(fileRef)
+            .then((url) => {
+                const xhr = new XMLHttpRequest();
+                xhr.responseType = 'blob';
+                
+                xhr.onload = () => {
+                    if (xhr.status === 200) {
+                        resolve(xhr.response);
+                    } else {
+                        reject(new Error(`Download failed with status: ${xhr.status}`));
+                    }
+                };
+                
+                xhr.onerror = () => {
+                    reject(new Error("XMLHttpRequest error during file download."));
+                };
+                
+                xhr.open('GET', url);
+                xhr.send();
+            })
+            .catch((error) => {
+                console.error("Error getting download URL for blob:", error);
+                reject(error);
+            });
+    });
 };
 
 

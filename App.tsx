@@ -31,6 +31,48 @@ const App: React.FC = () => {
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState<boolean>(false);
     const [fileToDelete, setFileToDelete] = useState<string | null>(null);
 
+    // Header visibility state
+    const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+    const lastScrollY = useRef(0);
+
+
+    useEffect(() => {
+        // A threshold to prevent jittery behavior on minor scroll movements.
+        const SCROLL_THRESHOLD = 10; 
+
+        const handleScroll = () => {
+            const currentScrollY = window.scrollY;
+            const scrollDelta = currentScrollY - lastScrollY.current;
+
+            // Always show header when at the top of the page.
+            if (currentScrollY < SCROLL_THRESHOLD) {
+                setIsHeaderVisible(true);
+                lastScrollY.current = currentScrollY;
+                return;
+            }
+
+            // Hide header when scrolling down past the threshold.
+            if (scrollDelta > SCROLL_THRESHOLD) {
+                setIsHeaderVisible(false);
+            } 
+            // Show header when scrolling up past the threshold.
+            else if (scrollDelta < -SCROLL_THRESHOLD) {
+                setIsHeaderVisible(true);
+            }
+            
+            // Update the last scroll position for the next event.
+            lastScrollY.current = currentScrollY;
+        };
+
+
+        window.addEventListener('scroll', handleScroll, { passive: true });
+
+        return () => {
+            window.removeEventListener('scroll', handleScroll);
+        };
+    }, []);
+
+
     const loadMoreMedia = useCallback(async () => {
         if (!nextPageToken) {
             setHasMore(false);
@@ -172,7 +214,11 @@ const App: React.FC = () => {
 
     return (
         <div className="min-h-screen font-sans pb-16">
-            <Header postCount={mediaFiles.length} onOpenOptions={handleOpenMasterKeyModal} />
+            <Header 
+                postCount={mediaFiles.length} 
+                onOpenOptions={handleOpenMasterKeyModal} 
+                isVisible={isHeaderVisible}
+            />
             
             <main className="container mx-auto">
                 {isUploading && <UploadProgress progress={totalProgress} />}
