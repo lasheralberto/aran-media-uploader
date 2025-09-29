@@ -1,20 +1,47 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { HeartIcon } from './Icons';
+import { getProfileImageUrl } from '../services/firebase';
+ 
 
 interface HeaderProps {
   postCount: number;
 }
 
 const Header: React.FC<HeaderProps> = ({ postCount }) => {
+  const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+      const fetchImage = async () => {
+          setIsLoading(true);
+          const url = await getProfileImageUrl();
+          setProfileImageUrl(url);
+          setIsLoading(false);
+      };
+      fetchImage();
+  }, []);
+
   return (
     <header className="bg-white/80 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-200">
       <div className="container mx-auto px-4 py-5">
         <div className="flex items-center gap-8">
           {/* Foto de perfil estilo Instagram */}
           <div className="p-[2px] rounded-full bg-gradient-to-tr from-pink-500 via-red-500 to-yellow-500">
-            <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100">
-                <img src="assets/profile.jpg" alt="Foto de perfil de la boda" className="w-full h-full object-cover" />
+            <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+              {isLoading ? (
+                  <div className="w-full h-full bg-gray-300 animate-pulse" />
+              ) : profileImageUrl ? (
+                  <img
+                    src={profileImageUrl}
+                    alt="Perfil"
+                    className="w-full h-full object-cover"
+                    />
+
+              ) : (
+                  <HeartIcon className="h-12 w-12 text-gray-400" />
+              )}
             </div>
+
           </div>
 
           {/* Stats al lado, estilo Instagram */}

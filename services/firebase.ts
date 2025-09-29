@@ -41,30 +41,67 @@ const getFileType = (fileName: string): 'image' | 'video' => {
     return 'image';
 };
 
-export const uploadFile = (
-    file: File, 
-    onProgress: (progress: number) => void
-): Promise<void> => {
-    return new Promise((resolve, reject) => {
-        // Using a reverse timestamp in the name to ensure the newest files are listed first by Firebase.
-        const fileName = `${(Number.MAX_SAFE_INTEGER - Date.now())}-${file.name}`;
-        const fileRef = ref(storage, `media/${fileName}`);
-        const uploadTask = uploadBytesResumable(fileRef, file);
+export const uploadFile = async (
+  file: File,
+  onProgress: (progress: number) => void,
+  maxRetries = 2
+): Promise<string> => {
 
-        uploadTask.on('state_changed', 
-            (snapshot: UploadTaskSnapshot) => {
-                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                onProgress(progress);
-            }, 
-            (error) => {
-                console.error("Upload failed:", error);
-                reject(error);
-            }, 
-            () => {
-                resolve();
-            }
-        );
+  // Función para sanear el nombre de archivo
+  const sanitizeFileName = (name: string) =>
+    name.replace(/[\/\\#?]/g, '_');
+
+  const fileName = `${Number.MAX_SAFE_INTEGER - Date.now()}-${sanitizeFileName(file.name)}`;
+  const fileRef = ref(storage, `media/${fileName}`);
+
+  let attempt = 0;
+
+  const tryUpload = (): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const uploadTask = uploadBytesResumable(fileRef, file);
+
+      uploadTask.on(
+        "state_changed",
+        (snapshot: UploadTaskSnapshot) => {
+          const progress = snapshot.totalBytes > 0
+            ? (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+            : 0;
+          onProgress(progress);
+        },
+        (error) => {
+          console.error(`Upload failed (attempt ${attempt + 1}):`, error);
+          attempt++;
+          if (attempt <= maxRetries) {
+            console.log(`Reintentando subida... (${attempt}/${maxRetries})`);
+            resolve(tryUpload()); // reintento
+          } else {
+            reject(error);
+          }
+        },
+        async () => {
+          try {
+            const url = await getDownloadURL(uploadTask.snapshot.ref);
+            resolve(url);
+          } catch (err) {
+            reject(err);
+          }
+        }
+      );
     });
+  };
+
+  return tryUpload();
+};
+
+export const getProfileImageUrl = async (): Promise<string | null> => {
+    try {
+        const fileRef = ref(storage, 'media/profile.jpg');
+        const url = await getDownloadURL(fileRef);
+        return url;
+    } catch (error) {
+        console.warn("Profile image 'media/profile.jpg' not found in Firebase Storage.");
+        return null;
+    }
 };
 
 
@@ -82,7 +119,9 @@ export const listMediaFiles = async (pageToken?: string): Promise<ListMediaResul
             pageToken: pageToken,
         });
 
-        const mediaFilesPromises = listResponse.items.map(async (itemRef: StorageReference) => {
+        const filteredItems = listResponse.items.filter(item => item.name !== 'profile.jpg');
+
+        const mediaFilesPromises = filteredItems.map(async (itemRef: StorageReference) => {
             const url = await getDownloadURL(itemRef);
             return {
                 name: itemRef.name,
