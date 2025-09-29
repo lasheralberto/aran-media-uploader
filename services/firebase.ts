@@ -9,7 +9,8 @@ import {
     deleteObject,
     type UploadTaskSnapshot,
     type StorageReference,
-    type ListResult
+    type ListResult,
+    type UploadMetadata
 } from "firebase/storage";
 import { MediaFile } from '../types';
 
@@ -55,11 +56,16 @@ export const uploadFile = async (
   const fileName = `${Number.MAX_SAFE_INTEGER - Date.now()}-${sanitizeFileName(file.name)}`;
   const fileRef = ref(storage, `media/${fileName}`);
 
+  // Set cache control headers for the uploaded file for better performance.
+  const metadata: UploadMetadata = {
+    cacheControl: 'public, max-age=31536000, immutable',
+  };
+
   let attempt = 0;
 
   const tryUpload = (): Promise<string> => {
     return new Promise((resolve, reject) => {
-      const uploadTask = uploadBytesResumable(fileRef, file);
+      const uploadTask = uploadBytesResumable(fileRef, file, metadata);
 
       uploadTask.on(
         "state_changed",
