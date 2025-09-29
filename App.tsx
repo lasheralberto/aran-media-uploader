@@ -222,7 +222,7 @@ const App: React.FC = () => {
                     onDelete={handleRequestDelete}
                 />
             ) : (
-                <div className="pb-16">
+                <div className="pb-24">
                     <Header 
                         postCount={mediaFiles.length} 
                         onOpenOptions={handleOpenMasterKeyModal} 
