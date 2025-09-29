@@ -15,17 +15,18 @@ import { MediaFile } from '../types';
 // You can get this from your project's settings in the Firebase console.
 // IMPORTANT: For security, it is highly recommended to use environment variables
 // for this sensitive information, especially in a production environment.
+// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyAdLbY3STRARMEbN-zHuQvMD8Fi9D54Lec",
+  authDomain: "aran-boda-c39d3.firebaseapp.com",
+  projectId: "aran-boda-c39d3",
+  storageBucket: "aran-boda-c39d3.firebasestorage.app",
+  messagingSenderId: "339208458993",
+  appId: "1:339208458993:web:3a4a06e08143e1e3254f50"
 };
 
 // Initialize Firebase
-const app: FirebaseApp = initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
 
 const mediaFolderRef = ref(storage, 'media');
