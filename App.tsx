@@ -5,7 +5,7 @@ import Header from './components/Header';
 import MediaGrid from './components/MediaGrid';
 import UploadProgress from './components/UploadProgress';
 import BottomNav from './components/BottomNav';
-import MediaModal from './components/MediaModal';
+import MediaDetail from './components/MediaDetail';
 import Spinner from './components/Spinner';
 import MasterKeyModal from './components/MasterKeyModal';
 import ConfirmModal from './components/ConfirmModal';
@@ -159,7 +159,7 @@ const App: React.FC = () => {
         setSelectedMedia(file);
     };
 
-    const handleCloseModal = () => {
+    const handleGoBack = () => {
         setSelectedMedia(null);
     };
 
@@ -213,37 +213,42 @@ const App: React.FC = () => {
         : 0;
 
     return (
-        <div className="min-h-screen font-sans pb-16">
-            <Header 
-                postCount={mediaFiles.length} 
-                onOpenOptions={handleOpenMasterKeyModal} 
-                isVisible={isHeaderVisible}
-            />
-            
-            <main className="container mx-auto">
-                {isUploading && <UploadProgress progress={totalProgress} />}
-                <MediaGrid 
-                    mediaFiles={mediaFiles} 
-                    isLoading={isLoading}
-                    onItemClick={handleMediaItemClick}
-                    lastElementRef={lastElementRef}
-                    hasMore={hasMore}
+        <div className="min-h-screen font-sans">
+            {selectedMedia ? (
+                <MediaDetail 
+                    file={selectedMedia}
+                    onBack={handleGoBack}
+                    isAdmin={isAdmin}
+                    onDelete={handleRequestDelete}
                 />
-                {isLoadingMore && (
-                    <div className="flex justify-center items-center py-8">
-                        <Spinner />
-                    </div>
-                )}
-            </main>
-            
-            <BottomNav onUploadClick={handleUploadClick} />
+            ) : (
+                <div className="pb-16">
+                    <Header 
+                        postCount={mediaFiles.length} 
+                        onOpenOptions={handleOpenMasterKeyModal} 
+                        isVisible={isHeaderVisible}
+                    />
+                    
+                    <main className="container mx-auto">
+                        {isUploading && <UploadProgress progress={totalProgress} />}
+                        <MediaGrid 
+                            mediaFiles={mediaFiles} 
+                            isLoading={isLoading}
+                            onItemClick={handleMediaItemClick}
+                            lastElementRef={lastElementRef}
+                            hasMore={hasMore}
+                        />
+                        {isLoadingMore && (
+                            <div className="flex justify-center items-center py-8">
+                                <Spinner />
+                            </div>
+                        )}
+                    </main>
+                    
+                    <BottomNav onUploadClick={handleUploadClick} />
+                </div>
+            )}
 
-            <MediaModal 
-                file={selectedMedia} 
-                onClose={handleCloseModal} 
-                isAdmin={isAdmin}
-                onDelete={handleRequestDelete}
-            />
 
             <MasterKeyModal 
                 isOpen={isMasterKeyModalOpen}
