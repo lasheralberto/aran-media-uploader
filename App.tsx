@@ -10,6 +10,8 @@ import Spinner from './components/Spinner';
 import MasterKeyModal from './components/MasterKeyModal';
 import ConfirmModal from './components/ConfirmModal';
 
+const LAZY_RENDER_BATCH_SIZE = 6;
+
 const App: React.FC = () => {
     const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -23,6 +25,9 @@ const App: React.FC = () => {
     const [hasMore, setHasMore] = useState<boolean>(true);
     const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
     
+    // State for lazy rendering
+    const [renderedCount, setRenderedCount] = useState(LAZY_RENDER_BATCH_SIZE);
+
     // Admin state
     const [isAdmin, setIsAdmin] = useState<boolean>(false);
     const [isMasterKeyModalOpen, setIsMasterKeyModalOpen] = useState<boolean>(false);
@@ -89,25 +94,33 @@ const App: React.FC = () => {
         setIsLoadingMore(false);
     }, [nextPageToken]);
 
-    // Observer for infinite scroll
+    // Observer for infinite scroll and lazy rendering
     const observer = useRef<IntersectionObserver | null>(null);
     const lastElementRef = useCallback((node: HTMLDivElement | null) => {
         if (isLoadingMore) return;
         if (observer.current) observer.current.disconnect();
         
         observer.current = new IntersectionObserver(entries => {
-            if (entries[0].isIntersecting && hasMore) {
-                loadMoreMedia();
+            if (entries[0].isIntersecting) {
+                 // First, render more of the already-fetched items
+                 if (renderedCount < mediaFiles.length) {
+                    setRenderedCount(prev => Math.min(prev + LAZY_RENDER_BATCH_SIZE, mediaFiles.length));
+                } 
+                // If all fetched items are rendered, and there's more on the server, fetch the next page
+                else if (hasMore) {
+                    loadMoreMedia();
+                }
             }
         });
 
         if (node) observer.current.observe(node);
-    }, [isLoadingMore, hasMore, loadMoreMedia]);
+    }, [isLoadingMore, hasMore, loadMoreMedia, mediaFiles.length, renderedCount]);
 
 
     const fetchInitialMedia = useCallback(async () => {
         setIsLoading(true);
         setHasMore(true); // Reset hasMore on initial fetch
+        setRenderedCount(LAZY_RENDER_BATCH_SIZE); // Reset rendered count
         const { files, nextPageToken: token } = await listMediaFiles();
         setMediaFiles(files);
         setNextPageToken(token);
@@ -232,11 +245,11 @@ const App: React.FC = () => {
                     <main className="container mx-auto">
                         {isUploading && <UploadProgress progress={totalProgress} />}
                         <MediaGrid 
-                            mediaFiles={mediaFiles} 
+                            mediaFiles={mediaFiles.slice(0, renderedCount)} 
                             isLoading={isLoading}
                             onItemClick={handleMediaItemClick}
                             lastElementRef={lastElementRef}
-                            hasMore={hasMore}
+                            hasMore={renderedCount < mediaFiles.length || hasMore}
                         />
                         {isLoadingMore && (
                             <div className="flex justify-center items-center py-8">

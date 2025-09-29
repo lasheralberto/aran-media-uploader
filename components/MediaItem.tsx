@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { MediaFile } from '../types';
 
 interface MediaItemProps {
@@ -7,15 +8,28 @@ interface MediaItemProps {
 }
 
 const MediaItem: React.FC<MediaItemProps> = ({ file, onClick }) => {
+    const [isLoaded, setIsLoaded] = useState(false);
+
     return (
         <div 
-            className="group relative aspect-square bg-gray-200 cursor-pointer"
+            className={`group relative aspect-square bg-gray-300 cursor-pointer ${!isLoaded ? 'animate-pulse' : ''}`}
             onClick={onClick}
         >
             {file.type === 'image' ? (
-                <img src={file.url} alt={file.name} className="w-full h-full object-cover" loading="lazy" />
+                <img 
+                    src={file.url} 
+                    alt={file.name} 
+                    className={`w-full h-full object-cover transition-opacity duration-300 ease-in-out ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+                    loading="lazy"
+                    onLoad={() => setIsLoaded(true)}
+                />
             ) : (
-                <video src={`${file.url}#t=0.1`} className="w-full h-full object-cover" preload="metadata"></video>
+                <video 
+                    src={`${file.url}#t=0.1`} 
+                    className={`w-full h-full object-cover transition-opacity duration-300 ease-in-out ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+                    preload="metadata"
+                    onLoadedData={() => setIsLoaded(true)}
+                ></video>
             )}
         </div>
     );

@@ -1,7 +1,8 @@
+
 import React, { useState } from 'react';
 import { MediaFile } from '../types';
 import { BackIcon, HeartIcon, CommentIcon, ShareIcon, DownloadIcon, CheckIcon, TrashIcon } from './Icons';
-import { downloadFileBlob } from '../services/firebase';
+import Spinner from './Spinner';
 
 interface MediaDetailProps {
     file: MediaFile;
@@ -16,65 +17,75 @@ const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDele
     const [isCopied, setIsCopied] = useState(false);
 
     const handleDelete = () => {
-        if (!file) return;
         onDelete(file.name);
     };
 
-    const handleDownload = async () => {
-        if (!file) return;
-
-        setIsDownloading(true);
+    // Helper function to fetch the blob, relying on the Service Worker for caching.
+    const getMediaBlob = async (): Promise<Blob | null> => {
         try {
-            const blob = await downloadFileBlob(file.name);
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = file.name;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(link.href);
+            const response = await fetch(file.url);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch file: ${response.statusText}`);
+            }
+            return await response.blob();
         } catch (error) {
-            console.error("Error downloading file:", error);
-            alert("No se pudo descargar el archivo. Por favor, inténtalo de nuevo.");
-        } finally {
-            setIsDownloading(false);
+            console.error("Error fetching media blob:", error);
+            alert("No se pudo obtener el archivo. Por favor, revisa tu conexión.");
+            return null;
         }
+    };
+
+    const handleDownload = async () => {
+        setIsDownloading(true);
+        const blob = await getMediaBlob();
+        if (blob) {
+            try {
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = file.name;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href);
+            } catch (error) {
+                console.error("Error downloading file:", error);
+                alert("No se pudo descargar el archivo.");
+            }
+        }
+        setIsDownloading(false);
     };
     
     const handleShare = async () => {
-        if (!file) return;
         setIsSharing(true);
+        const blob = await getMediaBlob();
 
+        if (!blob) {
+            setIsSharing(false);
+            return;
+        }
+        
+        const fileToShare = new File([blob], file.name, { type: blob.type });
         const shareData = {
             title: `Recuerdo de la boda: ${file.name}`,
             text: '¡Mira esta foto de la boda de Alberto y Mariona!',
-            url: file.url
+            files: [fileToShare]
         };
 
         try {
-            if (navigator.share && navigator.canShare) {
-                const blob = await downloadFileBlob(file.name);
-                const fileToShare = new File([blob], file.name, { type: blob.type });
-                if (navigator.canShare({ files: [fileToShare] })) {
-                    await navigator.share({
-                        files: [fileToShare],
-                        title: shareData.title,
-                        text: shareData.text,
-                    });
-                    setIsSharing(false);
-                    return;
-                }
+             if (navigator.share && navigator.canShare && navigator.canShare({ files: [fileToShare] })) {
+                await navigator.share(shareData);
+            } else if (navigator.share) {
+                // Fallback for devices that can't share files but can share URLs
+                await navigator.share({
+                    title: shareData.title,
+                    text: shareData.text,
+                    url: file.url
+                });
+            } else {
+                 throw new Error('Web Share API not supported.');
             }
         } catch (e) {
-            console.warn("Couldn't share file directly, falling back to URL share.", e);
-        }
-        if (navigator.share) {
-             try {
-                await navigator.share(shareData);
-            } catch (error) {
-                console.error('Error sharing URL:', error);
-            }
-        } else {
+            console.warn("Share failed, falling back to clipboard.", e);
             try {
                 await navigator.clipboard.writeText(file.url);
                 setIsCopied(true);
@@ -99,7 +110,7 @@ const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDele
             </button>
 
             <div className="h-full w-full flex items-center justify-center p-4">
-                 {file.type === 'image' ? (
+                {file.type === 'image' ? (
                     <img src={file.url} alt={file.name} className="max-w-full max-h-full object-contain" />
                 ) : (
                     <video src={file.url} className="max-w-full max-h-full object-contain" controls autoPlay></video>

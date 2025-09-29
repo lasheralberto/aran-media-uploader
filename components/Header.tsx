@@ -1,8 +1,8 @@
+
 import React, { useState, useEffect } from 'react';
 import { HeartIcon, CheckIcon, OptionsIcon } from './Icons';
 import { getProfileImageUrl } from '../services/firebase';
  
-
 interface HeaderProps {
   postCount: number;
   onOpenOptions: () => void;
@@ -15,13 +15,20 @@ const Header: React.FC<HeaderProps> = ({ postCount, onOpenOptions, isVisible }) 
   const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
-      const fetchImage = async () => {
-          setIsLoading(true);
-          const url = await getProfileImageUrl();
-          setProfileImageUrl(url);
-          setIsLoading(false);
-      };
-      fetchImage();
+    const fetchImage = async () => {
+        setIsLoading(true);
+        try {
+            const url = await getProfileImageUrl();
+            if (url) {
+                setProfileImageUrl(url);
+            }
+        } catch (error) {
+            console.error("Error loading profile image:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    fetchImage();
   }, []);
 
   const handleShare = async () => {
