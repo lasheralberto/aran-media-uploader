@@ -13,7 +13,7 @@ const Header: React.FC<HeaderProps> = ({ postCount }) => {
           <div className="p-[2px] rounded-full bg-gradient-to-tr from-pink-500 via-red-500 to-yellow-500">
             <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
             <img
-                src="/assets/profile.JPG"
+                src="/assets/profile.jpg"
                 alt="Perfil"
                 className="w-full h-full object-cover"
             />
