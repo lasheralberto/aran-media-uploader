@@ -6,9 +6,10 @@ interface HeaderProps {
   postCount: number;
   onOpenOptions: () => void;
   isVisible: boolean;
+  userId: string;
 }
 
-const Header: React.FC<HeaderProps> = ({ postCount, onOpenOptions, isVisible }) => {
+const Header: React.FC<HeaderProps> = ({ postCount, onOpenOptions, isVisible, userId }) => {
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCopied, setIsCopied] = useState(false);
@@ -17,7 +18,7 @@ const Header: React.FC<HeaderProps> = ({ postCount, onOpenOptions, isVisible }) 
     const fetchImage = async () => {
         setIsLoading(true);
         try {
-            const url = await getProfileImageUrl();
+            const url = await getProfileImageUrl(userId);
             if (url) {
                 setProfileImageUrl(url);
             }
@@ -28,7 +29,7 @@ const Header: React.FC<HeaderProps> = ({ postCount, onOpenOptions, isVisible }) 
         }
     };
     fetchImage();
-  }, []);
+  }, [userId]);
 
   const handleShare = async () => {
     const shareUrl = window.location.href;

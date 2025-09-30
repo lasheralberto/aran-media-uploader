@@ -1,5 +1,5 @@
-// Fix: Use 'type' keyword for type-only imports for better clarity and to avoid potential module resolution issues.
-import { initializeApp, type FirebaseApp } from "firebase/app";
+// FIX: The previous namespace import `import * as firebaseApp from 'firebase/app'` was incorrect for Firebase v9+ modular SDK. The `initializeApp` function is a named export and should be imported directly.
+import { initializeApp } from "firebase/app";
 import { 
     getStorage, 
     ref, 
@@ -29,10 +29,9 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
+// FIX: The namespace import `import * as firebaseApp` was incorrect. `initializeApp` is a named export and should be called directly.
 const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
-
-const mediaFolderRef = ref(storage, 'media');
 
 const getFileType = (fileName: string): 'image' | 'video' => {
     const name = fileName.toLowerCase();
@@ -46,6 +45,7 @@ const getFileType = (fileName: string): 'image' | 'video' => {
 export const uploadFile = async (
   file: File,
   onProgress: (progress: number) => void,
+  userId: string,
   maxRetries = 2
 ): Promise<string> => {
 
@@ -54,7 +54,7 @@ export const uploadFile = async (
     name.replace(/[\/\\#?]/g, '_');
 
   const fileName = `${Number.MAX_SAFE_INTEGER - Date.now()}-${sanitizeFileName(file.name)}`;
-  const fileRef = ref(storage, `media/${fileName}`);
+  const fileRef = ref(storage, `feedPosts/${userId}/${fileName}`);
 
   // Set cache control headers for the uploaded file for better performance.
   const metadata: UploadMetadata = {
@@ -100,13 +100,13 @@ export const uploadFile = async (
   return tryUpload();
 };
 
-export const getProfileImageUrl = async (): Promise<string | null> => {
+export const getProfileImageUrl = async (userId: string): Promise<string | null> => {
     try {
-        const fileRef = ref(storage, 'media/profile.jpg');
+        const fileRef = ref(storage, `profileImages/${userId}/profile.jpg`);
         const url = await getDownloadURL(fileRef);
         return url;
     } catch (error) {
-        console.warn("Profile image 'media/profile.jpg' not found in Firebase Storage.");
+        console.warn(`Profile image 'profileImages/${userId}/profile.jpg' not found in Firebase Storage.`);
         return null;
     }
 };
@@ -118,16 +118,16 @@ export interface ListMediaResult {
 
 const PAGE_SIZE = 21; // A multiple of 3 for the grid layout
 
-export const listMediaFiles = async (pageToken?: string): Promise<ListMediaResult> => {
+export const listMediaFiles = async (userId: string, pageToken?: string): Promise<ListMediaResult> => {
     try {
+        const mediaFolderRef = ref(storage, `feedPosts/${userId}`);
+
         const listResponse: ListResult = await list(mediaFolderRef, {
             maxResults: PAGE_SIZE,
             pageToken: pageToken,
         });
 
-        const filteredItems = listResponse.items.filter(item => item.name !== 'profile.jpg');
-
-        const mediaFilesPromises = filteredItems.map(async (itemRef: StorageReference) => {
+        const mediaFilesPromises = listResponse.items.map(async (itemRef: StorageReference) => {
             const url = await getDownloadURL(itemRef);
             return {
                 name: itemRef.name,
@@ -145,13 +145,13 @@ export const listMediaFiles = async (pageToken?: string): Promise<ListMediaResul
 
     } catch (error) {
         console.error("Error listing files:", error);
-        alert("Could not list files. Please check your Firebase Storage setup and ensure security rules allow public read access. (e.g., allow read: if true;)");
+        alert("Could not list files. Please check your Firebase Storage setup and ensure security rules allow public read access for the specified path.");
         return { files: [], nextPageToken: undefined };
     }
 };
 
-export const deleteFile = async (fileName: string): Promise<void> => {
-    const fileRef = ref(storage, `media/${fileName}`);
+export const deleteFile = async (fileName: string, userId: string): Promise<void> => {
+    const fileRef = ref(storage, `feedPosts/${userId}/${fileName}`);
     try {
         await deleteObject(fileRef);
     } catch (error) {

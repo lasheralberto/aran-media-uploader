@@ -4,15 +4,19 @@ import { MediaFile } from '../types';
 import Header from './Header';
 import MediaGrid from './MediaGrid';
 import UploadProgress from './UploadProgress';
-import BottomNav from './BottomNav';
+import { AddIcon } from './Icons';
 import MediaDetail from './MediaDetail';
 import Spinner from './Spinner';
 import MasterKeyModal from './MasterKeyModal';
 import ConfirmModal from './ConfirmModal';
 
+interface GalleryProps {
+    userId: string;
+}
+
 const LAZY_RENDER_BATCH_SIZE = 6;
 
-const Gallery: React.FC = () => {
+const Gallery: React.FC<GalleryProps> = ({ userId }) => {
     const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -85,14 +89,14 @@ const Gallery: React.FC = () => {
         };
         
         setIsLoadingMore(true);
-        const { files, nextPageToken: token } = await listMediaFiles(nextPageToken);
+        const { files, nextPageToken: token } = await listMediaFiles(userId, nextPageToken);
         setMediaFiles(prev => [...prev, ...files]);
         setNextPageToken(token);
         if (!token) {
             setHasMore(false);
         }
         setIsLoadingMore(false);
-    }, [nextPageToken]);
+    }, [nextPageToken, userId]);
 
     // Observer for infinite scroll and lazy rendering
     const observer = useRef<IntersectionObserver | null>(null);
@@ -121,14 +125,14 @@ const Gallery: React.FC = () => {
         setIsLoading(true);
         setHasMore(true); // Reset hasMore on initial fetch
         setRenderedCount(LAZY_RENDER_BATCH_SIZE); // Reset rendered count
-        const { files, nextPageToken: token } = await listMediaFiles();
+        const { files, nextPageToken: token } = await listMediaFiles(userId);
         setMediaFiles(files);
         setNextPageToken(token);
         if (!token) {
             setHasMore(false);
         }
         setIsLoading(false);
-    }, []);
+    }, [userId]);
 
     useEffect(() => {
         fetchInitialMedia();
@@ -146,7 +150,7 @@ const Gallery: React.FC = () => {
         const uploadPromises = Array.from(files).map((file: File) => {
             return uploadFile(file, (progress) => {
                 setUploadProgress(prev => ({ ...prev, [file.name]: progress }));
-            });
+            }, userId);
         });
 
         try {
@@ -207,7 +211,7 @@ const Gallery: React.FC = () => {
     const handleConfirmDelete = async () => {
         if (!fileToDelete) return;
         try {
-            await deleteFile(fileToDelete);
+            await deleteFile(fileToDelete, userId);
             setMediaFiles(prev => prev.filter(file => file.name !== fileToDelete));
             if (selectedMedia?.name === fileToDelete) {
                 setSelectedMedia(null);
@@ -244,6 +248,7 @@ const Gallery: React.FC = () => {
                         postCount={mediaFiles.length} 
                         onOpenOptions={handleOpenMasterKeyModal} 
                         isVisible={isHeaderVisible}
+                        userId={userId}
                     />
                     
                     <main className="container mx-auto">
@@ -262,10 +267,18 @@ const Gallery: React.FC = () => {
                         )}
                     </main>
                     
-                    <BottomNav onUploadClick={handleUploadClick} />
                 </div>
             )}
 
+            {!selectedMedia && (
+                <button
+                    onClick={handleUploadClick}
+                    className="fixed bottom-6 right-6 z-20 bg-rose-500 text-white rounded-full p-4 shadow-lg hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500 transition-transform transform hover:scale-110"
+                    aria-label="Subir archivos"
+                >
+                    <AddIcon className="h-8 w-8" />
+                </button>
+            )}
 
             <MasterKeyModal 
                 isOpen={isMasterKeyModalOpen}
