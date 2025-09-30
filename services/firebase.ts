@@ -1,5 +1,6 @@
 // FIX: Changed Firebase import to use a namespace (`import * as firebaseApp`) to potentially resolve module resolution issues with named exports.
-import * as firebaseApp from "firebase/app";
+
+import { initializeApp } from "firebase/app";
 import { 
     getStorage, 
     ref, 
@@ -32,7 +33,7 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = firebaseApp.initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
 
 const getFileType = (fileName: string): 'image' | 'video' => {
@@ -176,32 +177,30 @@ export const copyFileToCategory = async (
   userId: string,
   category: string
 ): Promise<void> => {
-    const sourceRef = ref(storage, `feedPosts/${userId}/${fileName}`);
-    
-    try {
-        const downloadUrl = await getDownloadURL(sourceRef);
-        const response = await fetch(downloadUrl);
-        const blob = await response.blob();
+  // referencia al archivo origen
+  const sourceRef = ref(storage, `feedPosts/${userId}/${fileName}`);
 
-        // Extract the original file name by stripping the timestamp prefix.
-        // The format is assumed to be `<timestamp>-<original_name>`.
-        const firstHyphenIndex = fileName.indexOf('-');
-        const originalFileName = firstHyphenIndex !== -1 ? fileName.substring(firstHyphenIndex + 1) : fileName;
-        
-        const fileToUpload = new File([blob], originalFileName, { type: blob.type });
+  try {
+    // ✅ obtener el blob usando el SDK (no fetch → no CORS)
+    const blob = await getBlob(sourceRef);
 
-        // We don't have progress UI for copying, so we pass a no-op callback.
-        const onProgress = () => {};
+    // reconstruir nombre original quitando el prefijo de timestamp
+    const firstHyphenIndex = fileName.indexOf('-');
+    const originalFileName =
+      firstHyphenIndex !== -1 ? fileName.substring(firstHyphenIndex + 1) : fileName;
 
-        // Reuse the robust uploadFile function to perform the copy.
-        // It returns a URL which we don't need here, but we await its completion.
-        await uploadFile(fileToUpload, onProgress, userId, category);
+    // crear un objeto File (conserva el type original del blob)
+    const fileToUpload = new File([blob], originalFileName, { type: blob.type });
 
-    } catch (error) {
-        console.error(`Failed to copy file '${fileName}' to category '${category}':`, error);
-        throw error;
-    }
+    // reusar el método uploadFile para subirlo en la categoría
+    const onProgress = () => {};
+    await uploadFile(fileToUpload, onProgress, userId, category);
+  } catch (error) {
+    console.error(`Failed to copy file '${fileName}' to category '${category}':`, error);
+    throw error;
+  }
 };
+
 
 export const checkCategoryContent = async (
   userId: string,
