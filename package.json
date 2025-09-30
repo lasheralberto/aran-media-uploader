@@ -12,7 +12,8 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "firebase": "^12.3.0",
-    "webworker": "^0.8.4"
+    "webworker": "^0.8.4",
+    "@google/genai": "^1.21.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

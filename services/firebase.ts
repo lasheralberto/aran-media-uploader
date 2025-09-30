@@ -1,22 +1,22 @@
 // FIX: Changed Firebase import to use a namespace (`import * as firebaseApp`) to potentially resolve module resolution issues with named exports.
 import React from 'react';
-// FIX: Changed to namespace import to resolve issue where `initializeApp` was not found as a named export.
-import * as firebaseApp from "firebase/app";
-import { 
-    getStorage, 
-    ref, 
-    uploadBytesResumable, 
-    getDownloadURL, 
-    list,
-    deleteObject,
-    uploadBytes,
-    getBlob,
-    type UploadTaskSnapshot,
-    type StorageReference,
-    type ListResult,
-    type UploadMetadata
+import { initializeApp } from "firebase/app";
+import {
+  getStorage,
+  ref,
+  uploadBytesResumable,
+  getDownloadURL,
+  list,
+  deleteObject,
+  uploadBytes,
+  getBlob,
+  type UploadTaskSnapshot,
+  type StorageReference,
+  type ListResult,
+  type UploadMetadata
 } from "firebase/storage";
 
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 
 import { MediaFile } from '../types';
 
@@ -35,23 +35,95 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = firebaseApp.initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
+const ai = new GoogleGenAI({
+  apiKey: process.env.API_KEY
+});
+
+// Helper to convert image URL to base64
+const imageUrlToBase64 = async (url: string): Promise<string> => {
+    const response = await fetch(url);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+    }
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const result = reader.result as string;
+            resolve(result.split(',')[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+};
+
+export async function classifyImage(
+  imageUrl: string,
+  mimeType: string,
+): Promise<string | null> {
+  try {
+    const base64ImageData = await imageUrlToBase64(imageUrl);
+
+    const imagePart = {
+      inlineData: {
+        mimeType: mimeType,
+        data: base64ImageData,
+      },
+    };
+
+    const textPart = {
+      text: "Analyze this image from a wedding and classify it into one of the following three categories: 'Church', 'Celebration', or 'Party'. Your response must be a JSON object with a single 'category' key, like {\"category\": \"CATEGORY_NAME\"}. Only one of the three categories should be returned.",
+    };
+
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: { parts: [imagePart, textPart] },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+                category: {
+                    type: Type.STRING,
+                    description: 'The category of the image. Must be one of: Church, Celebration, Party.',
+                    enum: ['Church', 'Celebration', 'Party']
+                }
+            },
+            required: ['category']
+        }
+      }
+    });
+
+    const jsonString = response.text.trim();
+    const result = JSON.parse(jsonString);
+    
+    if (result.category && ['Church', 'Celebration', 'Party'].includes(result.category)) {
+        return result.category;
+    }
+    
+    console.warn("Classification result was not one of the expected categories:", result.category);
+    return null;
+  } catch (error) {
+    console.error("Error classifying image:", error);
+    return null; // Return null if classification fails
+  }
+}
 
 const getFileType = (fileName: string): 'image' | 'video' => {
-    const name = fileName.toLowerCase();
-    const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.mkv', '.avi', '.wmv', '.flv'];
-    if (videoExtensions.some(ext => name.endsWith(ext))) {
-        return 'video';
-    }
-    return 'image';
+  const name = fileName.toLowerCase();
+  const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.mkv', '.avi', '.wmv', '.flv'];
+  if (videoExtensions.some(ext => name.endsWith(ext))) {
+    return 'video';
+  }
+  return 'image';
 };
 
 export const uploadFile = async (
   file: File,
   onProgress: (progress: number) => void,
   userId: string,
-  category: string | null = null,
   maxRetries = 2
 ): Promise<string> => {
 
@@ -60,7 +132,7 @@ export const uploadFile = async (
     name.replace(/[\/\\#?]/g, '_');
 
   const fileName = `${Number.MAX_SAFE_INTEGER - Date.now()}-${sanitizeFileName(file.name)}`;
-  const basePath = category ? `feedPosts/${userId}/${category}` : `feedPosts/${userId}`;
+  const basePath = `feedPosts/${userId}`;
   const fileRef = ref(storage, `${basePath}/${fileName}`);
 
   // Set cache control headers for the uploaded file for better performance.
@@ -95,6 +167,21 @@ export const uploadFile = async (
         async () => {
           try {
             const url = await getDownloadURL(uploadTask.snapshot.ref);
+            
+            // Only classify images, not videos
+            if (file.type.startsWith('image/')) {
+                const imageCategory = await classifyImage(url, file.type);
+                if (imageCategory) {
+                    console.log(`Image classified as: ${imageCategory}. Copying to category folder.`);
+                    // We don't need to wait for this to finish to show the image in the main feed.
+                    // Fire-and-forget, but log errors.
+                    copyFileToCategory(fileName, userId, imageCategory).catch(err => {
+                        console.error(`Failed to copy file ${fileName} to category ${imageCategory}:`, err);
+                    });
+                } else {
+                    console.log("Image could not be classified.");
+                }
+            }
             resolve(url);
           } catch (err) {
             reject(err);
@@ -108,103 +195,102 @@ export const uploadFile = async (
 };
 
 export const handleFileUploadProcess = async (
-    files: FileList | null,
-    userId: string,
-    category: string | null,
-    setIsUploading: (isUploading: boolean) => void,
-    setUploadProgress: React.Dispatch<React.SetStateAction<Record<string, number>>>,
-    onSuccess: () => Promise<void>,
-    onError: (error: any) => void,
-    onFinally: () => void
+  files: FileList | null,
+  userId: string,
+  setIsUploading: (isUploading: boolean) => void,
+  setUploadProgress: React.Dispatch<React.SetStateAction<Record<string, number>>>,
+  onSuccess: () => Promise<void>,
+  onError: (error: any) => void,
+  onFinally: () => void
 ) => {
-    if (!files || files.length === 0) return;
+  if (!files || files.length === 0) return;
 
-    setIsUploading(true);
+  setIsUploading(true);
+  setUploadProgress({});
+
+  const uploadTasks = Array.from(files).map(file => {
+    return uploadFile(file, progress => {
+      setUploadProgress(prev => ({ ...prev, [file.name]: progress }));
+    }, userId);
+  });
+
+  try {
+    await Promise.all(uploadTasks);
+    await onSuccess();
+  } catch (error) {
+    onError(error);
+  } finally {
+    setIsUploading(false);
     setUploadProgress({});
-    
-    const uploadTasks = Array.from(files).map(file => {
-        return uploadFile(file, progress => {
-            setUploadProgress(prev => ({ ...prev, [file.name]: progress }));
-        }, userId, category);
-    });
-
-    try {
-        await Promise.all(uploadTasks);
-        await onSuccess();
-    } catch (error) {
-        onError(error);
-    } finally {
-        setIsUploading(false);
-        setUploadProgress({});
-        onFinally();
-    }
+    onFinally();
+  }
 };
 
 export const getProfileImageUrl = async (userId: string): Promise<string | null> => {
-    try {
-        const fileRef = ref(storage, `profileImages/${userId}/profile.jpg`);
-        const url = await getDownloadURL(fileRef);
-        return url;
-    } catch (error) {
-        console.warn(`Profile image 'profileImages/${userId}/profile.jpg' not found in Firebase Storage.`);
-        return null;
-    }
+  try {
+    const fileRef = ref(storage, `profileImages/${userId}/profile.jpg`);
+    const url = await getDownloadURL(fileRef);
+    return url;
+  } catch (error) {
+    console.warn(`Profile image 'profileImages/${userId}/profile.jpg' not found in Firebase Storage.`);
+    return null;
+  }
 };
 
 export interface ListMediaResult {
-    files: MediaFile[];
-    nextPageToken?: string;
+  files: MediaFile[];
+  nextPageToken?: string;
 }
 
 const DEFAULT_PAGE_SIZE = 21; // A multiple of 3 for the grid layout
 
 export const listMediaFiles = async (
-    userId: string, 
-    category: string | null = null, 
-    pageToken?: string,
-    pageSize: number = DEFAULT_PAGE_SIZE
+  userId: string,
+  category: string | null = null,
+  pageToken?: string,
+  pageSize: number = DEFAULT_PAGE_SIZE
 ): Promise<ListMediaResult> => {
-    try {
-        const basePath = category ? `feedPosts/${userId}/${category}` : `feedPosts/${userId}`;
-        const mediaFolderRef = ref(storage, basePath);
+  try {
+    const basePath = category ? `feedPosts/${userId}/${category}` : `feedPosts/${userId}`;
+    const mediaFolderRef = ref(storage, basePath);
 
-        const listResponse: ListResult = await list(mediaFolderRef, {
-            maxResults: pageSize,
-            pageToken: pageToken,
-        });
+    const listResponse: ListResult = await list(mediaFolderRef, {
+      maxResults: pageSize,
+      pageToken: pageToken,
+    });
 
-        const mediaFilesPromises = listResponse.items.map(async (itemRef: StorageReference) => {
-            const url = await getDownloadURL(itemRef);
-            return {
-                name: itemRef.name,
-                url,
-                type: getFileType(itemRef.name)
-            };
-        });
+    const mediaFilesPromises = listResponse.items.map(async (itemRef: StorageReference) => {
+      const url = await getDownloadURL(itemRef);
+      return {
+        name: itemRef.name,
+        url,
+        type: getFileType(itemRef.name)
+      };
+    });
 
-        const files = await Promise.all(mediaFilesPromises);
+    const files = await Promise.all(mediaFilesPromises);
 
-        return {
-            files,
-            nextPageToken: listResponse.nextPageToken,
-        };
+    return {
+      files,
+      nextPageToken: listResponse.nextPageToken,
+    };
 
-    } catch (error) {
-        console.error("Error listing files:", error);
-        alert("Could not list files. Please check your Firebase Storage setup and ensure security rules allow public read access for the specified path.");
-        return { files: [], nextPageToken: undefined };
-    }
+  } catch (error) {
+    console.error("Error listing files:", error);
+    alert("Could not list files. Please check your Firebase Storage setup and ensure security rules allow public read access for the specified path.");
+    return { files: [], nextPageToken: undefined };
+  }
 };
 
 export const deleteFile = async (fileName: string, userId: string, category: string | null = null): Promise<void> => {
-    const basePath = category ? `feedPosts/${userId}/${category}` : `feedPosts/${userId}`;
-    const fileRef = ref(storage, `${basePath}/${fileName}`);
-    try {
-        await deleteObject(fileRef);
-    } catch (error) {
-        console.error(`Error deleting file ${fileName}:`, error);
-        throw error;
-    }
+  const basePath = category ? `feedPosts/${userId}/${category}` : `feedPosts/${userId}`;
+  const fileRef = ref(storage, `${basePath}/${fileName}`);
+  try {
+    await deleteObject(fileRef);
+  } catch (error) {
+    console.error(`Error deleting file ${fileName}:`, error);
+    throw error;
+  }
 };
 
 export const copyFileToCategory = async (
@@ -214,7 +300,7 @@ export const copyFileToCategory = async (
 ): Promise<void> => {
   // referencia al archivo original
   const sourceRef = ref(storage, `feedPosts/${userId}/${fileName}`);
-  
+
   // referencia destino (misma estructura pero con categoría)
   const destRef = ref(storage, `feedPosts/${userId}/${category}/${fileName}`);
 
@@ -237,12 +323,12 @@ export const checkCategoryContent = async (
   userId: string,
   category: string
 ): Promise<boolean> => {
-    const categoryRef = ref(storage, `feedPosts/${userId}/${category}`);
-    try {
-        const result = await list(categoryRef, { maxResults: 1 });
-        return result.items.length > 0;
-    } catch (error) {
-        console.error(`Error checking content for category '${category}':`, error);
-        return false; // Assume no content on error
-    }
+  const categoryRef = ref(storage, `feedPosts/${userId}/${category}`);
+  try {
+    const result = await list(categoryRef, { maxResults: 1 });
+    return result.items.length > 0;
+  } catch (error) {
+    console.error(`Error checking content for category '${category}':`, error);
+    return false; // Assume no content on error
+  }
 };

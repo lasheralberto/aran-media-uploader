@@ -12,6 +12,7 @@ import MasterKeyModal from './MasterKeyModal';
 import ConfirmModal from './ConfirmModal';
 import StoryViewer from './StoryViewer';
 
+
 interface GalleryProps {
     userId: string;
 }
@@ -137,7 +138,6 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
         await handleFileUploadProcess(
             files,
             userId,
-            null, // All files go to the main feed first.
             setIsUploading,
             setUploadProgress,
             async () => {
@@ -264,8 +264,9 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
     };
 
     const progressValues = Object.values(uploadProgress);
+    // FIX: Removed explicit type annotations from the `reduce` callback to allow TypeScript to infer types, resolving the arithmetic operation error.
     const totalProgress = progressValues.length > 0
-        ? progressValues.reduce((acc: number, curr: number) => acc + curr, 0) / progressValues.length
+        ? progressValues.reduce((acc, curr) => acc + curr, 0) / progressValues.length
         : 0;
 
     return (
