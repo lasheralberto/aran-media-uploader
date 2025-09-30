@@ -221,8 +221,11 @@ const App: React.FC = () => {
         }
     };
 
-    const totalProgress = Object.values(uploadProgress).length > 0
-        ? Object.values(uploadProgress).reduce((acc: number, curr: number) => acc + curr, 0) / Object.values(uploadProgress).length
+    // FIX: Refactored the total progress calculation for clarity and to resolve a TypeScript error.
+    // Breaking down the complex one-liner helps the type checker correctly infer the types.
+    const progressValues = Object.values(uploadProgress);
+    const totalProgress = progressValues.length > 0
+        ? progressValues.reduce((acc, curr) => acc + curr, 0) / progressValues.length
         : 0;
 
     return (
