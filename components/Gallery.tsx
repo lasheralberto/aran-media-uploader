@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { listMediaFiles, uploadFile, deleteFile, copyFileToCategory, checkCategoryContent } from '../services/firebase';
+import { listMediaFiles, deleteFile, copyFileToCategory, checkCategoryContent, handleFileUploadProcess } from '../services/firebase';
 import { MediaFile } from '../types';
 import Header from './Header';
 import MediaGrid from './MediaGrid';
@@ -134,32 +134,26 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
-        if (!files || files.length === 0) return;
-
-        setIsUploading(true);
-        setUploadProgress({});
-        
-        const uploadTasks = Array.from(files).map(file => {
-             // All files go to the main feed first.
-            return uploadFile(file, progress => {
-                setUploadProgress(prev => ({ ...prev, [file.name]: progress }));
-            }, userId, null);
-        });
-
-        try {
-            await Promise.all(uploadTasks);
-            await fetchMedia(); // Always refresh main view
-        } catch (error) {
-            alert('¡Ups! Algo ha fallado en la subida. ¿Quizás la foto es demasiado buena? Revisa la consola.');
-            console.error(error);
-        } finally {
-            setIsUploading(false);
-            setUploadProgress({});
-            refreshCategoryContentCheck();
-            if (fileInputRef.current) {
-                fileInputRef.current.value = "";
+        await handleFileUploadProcess(
+            files,
+            userId,
+            null, // All files go to the main feed first.
+            setIsUploading,
+            setUploadProgress,
+            async () => {
+                await fetchMedia(); // On success: always refresh main view
+            },
+            (error) => {
+                alert('¡Ups! Algo ha fallado en la subida. ¿Quizás la foto es demasiado buena? Revisa la consola.');
+                console.error(error);
+            },
+            () => {
+                refreshCategoryContentCheck();
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
+                }
             }
-        }
+        );
     };
     
     const handleUploadClick = () => {

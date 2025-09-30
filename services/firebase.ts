@@ -1,6 +1,7 @@
 // FIX: Changed Firebase import to use a namespace (`import * as firebaseApp`) to potentially resolve module resolution issues with named exports.
-
-import { initializeApp } from "firebase/app";
+import React from 'react';
+// FIX: Changed to namespace import to resolve issue where `initializeApp` was not found as a named export.
+import * as firebaseApp from "firebase/app";
 import { 
     getStorage, 
     ref, 
@@ -15,6 +16,7 @@ import {
     type ListResult,
     type UploadMetadata
 } from "firebase/storage";
+
 
 import { MediaFile } from '../types';
 
@@ -33,7 +35,7 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+const app = firebaseApp.initializeApp(firebaseConfig);
 const storage = getStorage(app);
 
 const getFileType = (fileName: string): 'image' | 'video' => {
@@ -103,6 +105,39 @@ export const uploadFile = async (
   };
 
   return tryUpload();
+};
+
+export const handleFileUploadProcess = async (
+    files: FileList | null,
+    userId: string,
+    category: string | null,
+    setIsUploading: (isUploading: boolean) => void,
+    setUploadProgress: React.Dispatch<React.SetStateAction<Record<string, number>>>,
+    onSuccess: () => Promise<void>,
+    onError: (error: any) => void,
+    onFinally: () => void
+) => {
+    if (!files || files.length === 0) return;
+
+    setIsUploading(true);
+    setUploadProgress({});
+    
+    const uploadTasks = Array.from(files).map(file => {
+        return uploadFile(file, progress => {
+            setUploadProgress(prev => ({ ...prev, [file.name]: progress }));
+        }, userId, category);
+    });
+
+    try {
+        await Promise.all(uploadTasks);
+        await onSuccess();
+    } catch (error) {
+        onError(error);
+    } finally {
+        setIsUploading(false);
+        setUploadProgress({});
+        onFinally();
+    }
 };
 
 export const getProfileImageUrl = async (userId: string): Promise<string | null> => {
@@ -177,26 +212,22 @@ export const copyFileToCategory = async (
   userId: string,
   category: string
 ): Promise<void> => {
-  // referencia al archivo origen
+  // referencia al archivo original
   const sourceRef = ref(storage, `feedPosts/${userId}/${fileName}`);
+  
+  // referencia destino (misma estructura pero con categoría)
+  const destRef = ref(storage, `feedPosts/${userId}/${category}/${fileName}`);
 
   try {
-    // ✅ obtener el blob usando el SDK (no fetch → no CORS)
+    // obtenemos el blob del archivo original
     const blob = await getBlob(sourceRef);
 
-    // reconstruir nombre original quitando el prefijo de timestamp
-    const firstHyphenIndex = fileName.indexOf('-');
-    const originalFileName =
-      firstHyphenIndex !== -1 ? fileName.substring(firstHyphenIndex + 1) : fileName;
+    // lo subimos directamente al nuevo path
+    await uploadBytes(destRef, blob);
 
-    // crear un objeto File (conserva el type original del blob)
-    const fileToUpload = new File([blob], originalFileName, { type: blob.type });
-
-    // reusar el método uploadFile para subirlo en la categoría
-    const onProgress = () => {};
-    await uploadFile(fileToUpload, onProgress, userId, category);
+    console.log(`Archivo '${fileName}' copiado a la categoría '${category}'`);
   } catch (error) {
-    console.error(`Failed to copy file '${fileName}' to category '${category}':`, error);
+    console.error(`Error copiando archivo '${fileName}' a '${category}':`, error);
     throw error;
   }
 };
