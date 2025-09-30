@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { HeartIcon, CheckIcon, OptionsIcon } from './Icons';
+import { HeartIcon, CheckIcon } from './Icons';
 import { getProfileImageUrl } from '../services/firebase';
  
 interface HeaderProps {
@@ -58,19 +58,15 @@ const Header: React.FC<HeaderProps> = ({ postCount, onOpenOptions, isVisible }) 
 
   return (
     <header className={`bg-white/80 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-200 transition-transform duration-300 ease-in-out ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}>
-      <div className="container mx-auto px-4 py-5 relative">
-        <button 
-            onClick={onOpenOptions}
-            className="absolute top-4 right-4 text-gray-500 hover:text-gray-800 transition-colors z-20"
-            aria-label="Opciones"
-        >
-            <OptionsIcon className="h-6 w-6" />
-        </button>
-
+      <div className="container mx-auto px-4 py-5">
         <div className="flex flex-col gap-4">
             {/* Row for avatar and KPIs */}
             <div className="flex items-center gap-4">
-                <div className="flex-shrink-0 p-[2px] rounded-full bg-gradient-to-tr from-pink-500 via-red-500 to-yellow-500">
+                <button 
+                    onClick={onOpenOptions}
+                    className="flex-shrink-0 p-[2px] rounded-full bg-gradient-to-tr from-pink-500 via-red-500 to-yellow-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500"
+                    aria-label="Opciones de administrador"
+                >
                     <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
                     {isLoading ? (
                         <div className="w-full h-full bg-gray-300 animate-pulse" />
@@ -85,7 +81,7 @@ const Header: React.FC<HeaderProps> = ({ postCount, onOpenOptions, isVisible }) 
                         <HeartIcon className="h-12 w-12 text-gray-400" />
                     )}
                     </div>
-                </div>
+                </button>
 
                 <div className="flex-grow flex justify-around text-center">
                     <div>
