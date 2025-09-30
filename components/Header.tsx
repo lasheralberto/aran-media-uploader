@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { HeartIcon, CheckIcon, CloseIcon } from './Icons';
+import { HeartIcon, CheckIcon, CloseIcon, ChurchIcon, CelebrationIcon, PartyIcon } from './Icons';
 import { getProfileImageUrl } from '../services/firebase';
  
 type CategoryInfo = {
@@ -173,8 +173,8 @@ const Header: React.FC<HeaderProps> = ({
                             >
                                 <div className="w-16 h-16 rounded-full p-0.5 bg-gradient-to-tr from-yellow-400 to-rose-500">
                                     <div className="bg-white p-0.5 rounded-full">
-                                        <div className="w-full h-full bg-rose-100 rounded-full flex items-center justify-center text-2xl">
-                                            {category.id === 'Church' ? '⛪️' : category.id === 'Celebration' ? '🎉' : '🕺'}
+                                        <div className="w-full h-full bg-rose-100 rounded-full flex items-center justify-center">
+                                            {category.id === 'Church' ? <ChurchIcon className="h-8 w-8 text-rose-500" /> : category.id === 'Celebration' ? <CelebrationIcon className="h-8 w-8 text-rose-500"/> : <PartyIcon className="h-8 w-8 text-rose-500"/>}
                                         </div>
                                     </div>
                                 </div>

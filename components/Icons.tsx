@@ -83,3 +83,25 @@ export const BackIcon: React.FC<{className?: string}> = ({className}) => (
       <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
     </svg>
 );
+
+export const ChurchIcon: React.FC<{className?: string}> = ({className}) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className || "h-6 w-6"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21V9.75L6 7.5v13.5M12 21h6V7.5L12 9.75M6 21H3v-9l9-4.5 9 4.5v9h-3" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3.75v3" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 5.25h3" />
+    </svg>
+);
+
+export const CelebrationIcon: React.FC<{className?: string}> = ({className}) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className || "h-6 w-6"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 21V12.75L3 6h10l-5 6.75V21" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16 21V12.75L11 6h10l-5 6.75V21" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M11 6l1-3" />
+    </svg>
+);
+
+export const PartyIcon: React.FC<{className?: string}> = ({className}) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className || "h-6 w-6"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V7.5A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v1.5A2.25 2.25 0 0010.5 9h-1.5z" />
+    </svg>
+);

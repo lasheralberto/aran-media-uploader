@@ -1,4 +1,3 @@
-// FIX: Use a named import for initializeApp as is standard for Firebase v9+
 import { initializeApp } from "firebase/app";
 import { 
     getStorage, 
@@ -14,6 +13,7 @@ import {
     type ListResult,
     type UploadMetadata
 } from "firebase/storage";
+
 import { MediaFile } from '../types';
 
 // TODO: Add your Firebase project's configuration here.
@@ -177,15 +177,25 @@ export const copyFileToCategory = async (
   category: string
 ): Promise<void> => {
     const sourceRef = ref(storage, `feedPosts/${userId}/${fileName}`);
-    const destinationRef = ref(storage, `feedPosts/${userId}/${category}/${fileName}`);
-
+    
     try {
-        // To "copy", we get the file as a blob directly from storage and re-upload it.
-        // This avoids CORS issues that can happen with fetch() on the download URL.
-        const blob = await getBlob(sourceRef);
+        const downloadUrl = await getDownloadURL(sourceRef);
+        const response = await fetch(downloadUrl);
+        const blob = await response.blob();
+
+        // Extract the original file name by stripping the timestamp prefix.
+        // The format is assumed to be `<timestamp>-<original_name>`.
+        const firstHyphenIndex = fileName.indexOf('-');
+        const originalFileName = firstHyphenIndex !== -1 ? fileName.substring(firstHyphenIndex + 1) : fileName;
         
-        // Use the simpler uploadBytes for this background copy operation
-        await uploadBytes(destinationRef, blob);
+        const fileToUpload = new File([blob], originalFileName, { type: blob.type });
+
+        // We don't have progress UI for copying, so we pass a no-op callback.
+        const onProgress = () => {};
+
+        // Reuse the robust uploadFile function to perform the copy.
+        // It returns a URL which we don't need here, but we await its completion.
+        await uploadFile(fileToUpload, onProgress, userId, category);
 
     } catch (error) {
         console.error(`Failed to copy file '${fileName}' to category '${category}':`, error);

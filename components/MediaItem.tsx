@@ -21,7 +21,7 @@ const MediaItem: React.FC<MediaItemProps> = ({ file, onClick, isSelectionMode, i
         timerRef.current = window.setTimeout(() => {
             isLongPress.current = true;
             onLongPress();
-        }, 500); // 500ms for a long press
+        }, 700); // 700ms for a long press
     };
 
     const handleInteractionEnd = () => {

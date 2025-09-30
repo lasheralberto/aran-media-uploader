@@ -5,7 +5,7 @@ import { MediaFile } from '../types';
 import Header from './Header';
 import MediaGrid from './MediaGrid';
 import UploadProgress from './UploadProgress';
-import { AddIcon } from './Icons';
+import { AddIcon, ChurchIcon, CelebrationIcon, PartyIcon } from './Icons';
 import MediaDetail from './MediaDetail';
 import Spinner from './Spinner';
 import MasterKeyModal from './MasterKeyModal';
@@ -317,7 +317,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                                         className="flex flex-col items-center justify-center gap-2 p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md hover:border-rose-300 transition-all text-center disabled:opacity-50 disabled:cursor-wait"
                                     >
                                         <div className="p-3 bg-rose-100 rounded-full">
-                                            <AddIcon className="h-6 w-6 text-rose-500" />
+                                            {category.id === 'Church' ? <ChurchIcon className="h-6 w-6 text-rose-500" /> : category.id === 'Celebration' ? <CelebrationIcon className="h-6 w-6 text-rose-500"/> : <PartyIcon className="h-6 w-6 text-rose-500"/>}
                                         </div>
                                         <span className="font-semibold text-gray-700 text-sm">{category.label}</span>
                                     </button>
