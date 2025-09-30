@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { HeartIcon, CheckIcon, CloseIcon, ChurchIcon, CelebrationIcon, PartyIcon } from './Icons';
+import { HeartIcon, CheckIcon, CloseIcon, ChurchIcon, CelebrationIcon, PartyIcon, ShareIcon } from './Icons';
 import { getProfileImageUrl } from '../services/firebase';
  
 type CategoryInfo = {
@@ -121,7 +121,7 @@ const Header: React.FC<HeaderProps> = ({
                     </div>
                 </button>
 
-                <div className="flex-grow flex justify-around text-center">
+                <div className="flex-grow flex justify-evenly items-center text-center">
                     <div>
                         <span className="font-bold text-lg">{postCount}</span>
                         <p className="text-sm text-gray-500">Posts</p>
@@ -134,6 +134,17 @@ const Header: React.FC<HeaderProps> = ({
                         <span className="font-bold text-lg">1.2k</span>
                         <p className="text-sm text-gray-500">Likes</p>
                     </div>
+                     <button 
+                        onClick={handleShare}
+                        className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
+                        aria-label="Compartir galería"
+                    >
+                        {isCopied ? (
+                            <CheckIcon className="h-6 w-6 text-green-600" />
+                        ) : (
+                            <ShareIcon className="h-6 w-6" />
+                        )}
+                    </button>
                 </div>
             </div>
             
@@ -145,25 +156,11 @@ const Header: React.FC<HeaderProps> = ({
                 💍 #Alberto&Mariona  <br />
                 🍾 Baila primero, etiqueta después.
                 </p>
-                 <button 
-                    onClick={handleShare}
-                    className="mt-4 w-full text-sm bg-gray-100 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-rose-300"
-                    aria-label="Compartir galería"
-                >
-                    {isCopied ? (
-                        <span className="flex items-center justify-center text-green-600">
-                            <CheckIcon className="h-5 w-5 mr-1" />
-                            ¡Copiado!
-                        </span>
-                    ) : (
-                        'Compartir'
-                    )}
-                </button>
             </div>
 
             {/* Story Bubbles */}
             {categoriesWithContent.length > 0 && (
-                <div className="pt-4 border-t border-gray-200 mt-4">
+                <div className="pt-3 border-t border-gray-200 mt-2">
                     <div className="flex items-center gap-4 -mx-4 px-4 overflow-x-auto">
                         {categoriesWithContent.map(category => (
                             <button 
@@ -171,11 +168,9 @@ const Header: React.FC<HeaderProps> = ({
                                 onClick={() => onCategoryBubbleClick(category.id)}
                                 className="flex flex-col items-center gap-1.5 flex-shrink-0 text-center focus:outline-none"
                             >
-                                <div className="w-16 h-16 rounded-full p-0.5 bg-gradient-to-tr from-yellow-400 to-rose-500">
-                                    <div className="bg-white p-0.5 rounded-full">
-                                        <div className="w-full h-full bg-rose-100 rounded-full flex items-center justify-center">
-                                            {category.id === 'Church' ? <ChurchIcon className="h-8 w-8 text-rose-500" /> : category.id === 'Celebration' ? <CelebrationIcon className="h-8 w-8 text-rose-500"/> : <PartyIcon className="h-8 w-8 text-rose-500"/>}
-                                        </div>
+                                <div className="w-14 h-14 rounded-full p-0.5 bg-gradient-to-tr from-yellow-400 to-rose-500">
+                                    <div className="bg-white w-full h-full rounded-full flex items-center justify-center">
+                                        {category.id === 'Church' ? <ChurchIcon className="h-7 w-7 text-rose-500" /> : category.id === 'Celebration' ? <CelebrationIcon className="h-7 w-7 text-rose-500"/> : <PartyIcon className="h-7 w-7 text-rose-500"/>}
                                     </div>
                                 </div>
                                 <span className="text-xs font-medium text-gray-600">{category.label}</span>

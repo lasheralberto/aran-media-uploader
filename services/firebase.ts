@@ -1,4 +1,5 @@
-import { initializeApp } from "firebase/app";
+// FIX: Changed Firebase import to use a namespace (`import * as firebaseApp`) to potentially resolve module resolution issues with named exports.
+import * as firebaseApp from "firebase/app";
 import { 
     getStorage, 
     ref, 
@@ -31,8 +32,7 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-// FIX: Call initializeApp directly as per Firebase v9+ modular SDK.
-const app = initializeApp(firebaseConfig);
+const app = firebaseApp.initializeApp(firebaseConfig);
 const storage = getStorage(app);
 
 const getFileType = (fileName: string): 'image' | 'video' => {
