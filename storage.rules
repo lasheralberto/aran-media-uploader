@@ -1,0 +1,33 @@
+rules_version = '2';
+
+// Craft rules based on data in your Firestore database
+// allow write: if firestore.get(
+//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Rules for feedPosts
+    match /feedPosts/{userId}/{allPaths=**} {
+      // Allow read access to everyone
+      allow read: if true;
+      
+      // Allow write (upload, update, delete) to everyone for now
+      // In production, you should restrict this to authenticated users
+      allow write: if true;
+    }
+    
+    // Rules for profile images
+    match /profileImages/{userId}/{allPaths=**} {
+      // Allow read access to everyone
+      allow read: if true;
+      
+      // Allow write access to everyone for now
+      // In production, you should restrict this
+      allow write: if true;
+    }
+    
+    // Default rule - deny everything else
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

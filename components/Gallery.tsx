@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { listMediaFiles, deleteFile, copyFileToCategory, checkCategoryContent, handleFileUploadProcess } from '../services/firebase';
+import { listMediaFiles, deleteFile, deleteFileFromAllLocations, copyFileToCategory, checkCategoryContent, handleFileUploadProcess } from '../services/firebase';
 import { MediaFile } from '../types';
 import Header from './Header';
 import MediaGrid from './MediaGrid';
 import UploadProgress from './UploadProgress';
-import { AddIcon, ChurchIcon, CelebrationIcon, PartyIcon } from './Icons';
+import { AddIcon, ChurchIcon, CelebrationIcon, PartyIcon, TrashIcon } from './Icons';
 import MediaDetail from './MediaDetail';
 import Spinner from './Spinner';
 import MasterKeyModal from './MasterKeyModal';
@@ -44,6 +44,8 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
     // Delete confirmation state
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState<boolean>(false);
     const [fileToDelete, setFileToDelete] = useState<string | null>(null);
+    const [isMultipleDeleteModalOpen, setIsMultipleDeleteModalOpen] = useState<boolean>(false);
+    const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
     // Header visibility state
     const [isHeaderVisible, setIsHeaderVisible] = useState(true);
@@ -245,26 +247,68 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
     const handleConfirmDelete = async () => {
         if (!fileToDelete) return;
         try {
-            // Deleting from a category is not implemented in this flow,
-            // so we assume deletion is always from the main feed.
-            await deleteFile(fileToDelete, userId, null);
+            console.log(`🔍 Starting deletion process for: ${fileToDelete} (user: ${userId})`);
+            await deleteFileFromAllLocations(fileToDelete, userId);
+            
             setMediaFiles(prev => prev.filter(file => file.name !== fileToDelete));
             if (selectedMedia?.name === fileToDelete) {
                 setSelectedMedia(null);
             }
             refreshCategoryContentCheck();
-            alert('Archivo eliminado correctamente.');
+            alert('Archivo eliminado correctamente de todas las ubicaciones.');
         } catch (error) {
             console.error("Error deleting file:", error);
-            alert('No se pudo eliminar el archivo.');
+            alert(`No se pudo eliminar el archivo: ${error instanceof Error ? error.message : 'Error desconocido'}`);
         } finally {
             setIsConfirmModalOpen(false);
             setFileToDelete(null);
         }
     };
 
-    const progressValues = Object.values(uploadProgress);
-    // FIX: Removed explicit type annotations from the `reduce` callback to allow TypeScript to infer types, resolving the arithmetic operation error.
+    const handleRequestMultipleDelete = () => {
+        if (selectedItems.length === 0) return;
+        setIsMultipleDeleteModalOpen(true);
+    };
+
+    const handleConfirmMultipleDelete = async () => {
+        if (selectedItems.length === 0) return;
+        
+        setIsDeleting(true);
+        try {
+            console.log(`🔍 Starting multiple deletion for ${selectedItems.length} files (user: ${userId})`);
+            console.log(`Files to delete:`, selectedItems);
+            
+            // Delete all selected files from all locations
+            const deletePromises = selectedItems.map(fileName => 
+                deleteFileFromAllLocations(fileName, userId)
+            );
+            await Promise.all(deletePromises);
+            
+            // Update state
+            setMediaFiles(prev => prev.filter(file => !selectedItems.includes(file.name)));
+            
+            // If the currently selected media is being deleted, close the detail view
+            if (selectedMedia && selectedItems.includes(selectedMedia.name)) {
+                setSelectedMedia(null);
+            }
+            
+            // Exit selection mode
+            setIsSelectionModeActive(false);
+            setSelectedItems([]);
+            
+            refreshCategoryContentCheck();
+            alert(`${selectedItems.length} archivo(s) eliminado(s) correctamente de todas las ubicaciones.`);
+        } catch (error) {
+            console.error("Error deleting files:", error);
+            alert(`No se pudieron eliminar algunos archivos: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+        } finally {
+            setIsDeleting(false);
+            setIsMultipleDeleteModalOpen(false);
+        }
+    };
+
+    // FIX: Simplified calculation to avoid TypeScript arithmetic errors.
+    const progressValues = Object.values(uploadProgress) as number[];
     const totalProgress = progressValues.length > 0
         ? progressValues.reduce((acc, curr) => acc + curr, 0) / progressValues.length
         : 0;
@@ -303,20 +347,45 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                          {isUploading && <UploadProgress progress={totalProgress} />}
 
                         {isSelectionModeActive && (
-                             <div className="p-4 grid grid-cols-3 gap-4">
-                                {CATEGORIES.map(category => (
-                                    <button 
-                                        key={category.id}
-                                        onClick={() => handleAddToCategory(category.id)}
-                                        disabled={isCopying}
-                                        className="flex flex-col items-center justify-center gap-2 p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md hover:border-rose-300 transition-all text-center disabled:opacity-50 disabled:cursor-wait"
-                                    >
-                                        <div className="p-3 bg-rose-100 rounded-full">
-                                            {category.id === 'Church' ? <ChurchIcon className="h-6 w-6 text-rose-500" /> : category.id === 'Celebration' ? <CelebrationIcon className="h-6 w-6 text-rose-500"/> : <PartyIcon className="h-6 w-6 text-rose-500"/>}
-                                        </div>
-                                        <span className="font-semibold text-gray-700 text-sm">{category.label}</span>
-                                    </button>
-                                ))}
+                             <div className="p-4">
+                                <div className="grid grid-cols-3 gap-4 mb-4">
+                                    {CATEGORIES.map(category => (
+                                        <button 
+                                            key={category.id}
+                                            onClick={() => handleAddToCategory(category.id)}
+                                            disabled={isCopying}
+                                            className="flex flex-col items-center justify-center gap-2 p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md hover:border-rose-300 transition-all text-center disabled:opacity-50 disabled:cursor-wait"
+                                        >
+                                            <div className="p-3 bg-rose-100 rounded-full">
+                                                {category.id === 'Church' ? <ChurchIcon className="h-6 w-6 text-rose-500" /> : category.id === 'Celebration' ? <CelebrationIcon className="h-6 w-6 text-rose-500"/> : <PartyIcon className="h-6 w-6 text-rose-500"/>}
+                                            </div>
+                                            <span className="font-semibold text-gray-700 text-sm">{category.label}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                                
+                                {/* Botón de eliminación múltiple solo para administradores */}
+                                {isAdmin && selectedItems.length > 0 && (
+                                    <div className="flex justify-center">
+                                        <button 
+                                            onClick={handleRequestMultipleDelete}
+                                            disabled={isDeleting}
+                                            className="flex items-center justify-center gap-2 px-6 py-3 bg-red-500 text-white rounded-lg shadow-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all disabled:opacity-50 disabled:cursor-wait"
+                                        >
+                                            {isDeleting ? (
+                                                <Spinner />
+                                            ) : (
+                                                <TrashIcon className="h-5 w-5" />
+                                            )}
+                                            <span className="font-semibold">
+                                                {isDeleting 
+                                                    ? 'Eliminando...' 
+                                                    : `Eliminar ${selectedItems.length} archivo${selectedItems.length > 1 ? 's' : ''}`
+                                                }
+                                            </span>
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )}
 
@@ -363,6 +432,14 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                 onConfirm={handleConfirmDelete}
                 title="Confirmar eliminación"
                 message={`¿Estás seguro de que quieres eliminar este archivo? Esta acción no se puede deshacer.`}
+            />
+
+            <ConfirmModal
+                isOpen={isMultipleDeleteModalOpen}
+                onClose={() => setIsMultipleDeleteModalOpen(false)}
+                onConfirm={handleConfirmMultipleDelete}
+                title="Confirmar eliminación múltiple"
+                message={`¿Estás seguro de que quieres eliminar ${selectedItems.length} archivo${selectedItems.length > 1 ? 's' : ''}? Esta acción no se puede deshacer.`}
             />
 
             <input

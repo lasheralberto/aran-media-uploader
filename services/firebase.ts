@@ -38,33 +38,60 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
 const ai = new GoogleGenAI({
-  apiKey: process.env.API_KEY
+  apiKey: "AIzaSyBHoBJ_a8NHjdBulMJXnXnFpKbaoLO6qH4"
 });
 
-// Helper to convert image URL to base64
-const imageUrlToBase64 = async (url: string): Promise<string> => {
-    const response = await fetch(url);
-    if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+// Helper to convert Firebase Storage reference to base64
+const storageRefToBase64 = async (storageRef: StorageReference): Promise<string> => {
+    try {
+        console.log('Getting blob from Firebase Storage reference:', storageRef.fullPath);
+        
+        // Use Firebase Storage's native getBlob method
+        const blob = await getBlob(storageRef);
+        console.log('Blob size:', blob.size, 'type:', blob.type);
+        
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const result = reader.result as string;
+                if (!result) {
+                    reject(new Error('FileReader result is null'));
+                    return;
+                }
+                // Extract base64 data (remove data:image/...;base64, prefix)
+                const base64Data = result.split(',')[1];
+                if (!base64Data) {
+                    reject(new Error('Failed to extract base64 data from result'));
+                    return;
+                }
+                console.log('Successfully converted to base64, length:', base64Data.length);
+                resolve(base64Data);
+            };
+            reader.onerror = (error) => {
+                console.error('FileReader error:', error);
+                reject(error);
+            };
+            reader.readAsDataURL(blob);
+        });
+    } catch (error) {
+        console.error('Error in storageRefToBase64:', error);
+        throw error;
     }
-    const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const result = reader.result as string;
-            resolve(result.split(',')[1]);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-    });
 };
 
 export async function classifyImage(
-  imageUrl: string,
+  fileName: string,
+  userId: string,
   mimeType: string,
 ): Promise<string | null> {
   try {
-    const base64ImageData = await imageUrlToBase64(imageUrl);
+    console.log('Starting image classification for file:', fileName);
+    console.log('MIME type:', mimeType);
+    
+    // Create storage reference directly
+    const fileRef = ref(storage, `feedPosts/${userId}/${fileName}`);
+    const base64ImageData = await storageRefToBase64(fileRef);
+    console.log('Successfully converted image to base64');
 
     const imagePart = {
       inlineData: {
@@ -77,6 +104,7 @@ export async function classifyImage(
       text: "Analyze this image from a wedding and classify it into one of the following three categories: 'Church', 'Celebration', or 'Party'. Your response must be a JSON object with a single 'category' key, like {\"category\": \"CATEGORY_NAME\"}. Only one of the three categories should be returned.",
     };
 
+    console.log('Calling Gemini API for image classification...');
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: { parts: [imagePart, textPart] },
@@ -97,9 +125,12 @@ export async function classifyImage(
     });
 
     const jsonString = response.text.trim();
+    console.log('Gemini API response:', jsonString);
+    
     const result = JSON.parse(jsonString);
     
     if (result.category && ['Church', 'Celebration', 'Party'].includes(result.category)) {
+        console.log('Image successfully classified as:', result.category);
         return result.category;
     }
     
@@ -107,6 +138,10 @@ export async function classifyImage(
     return null;
   } catch (error) {
     console.error("Error classifying image:", error);
+    if (error instanceof Error) {
+      console.error("Error message:", error.message);
+      console.error("Error stack:", error.stack);
+    }
     return null; // Return null if classification fails
   }
 }
@@ -170,7 +205,7 @@ export const uploadFile = async (
             
             // Only classify images, not videos
             if (file.type.startsWith('image/')) {
-                const imageCategory = await classifyImage(url, file.type);
+                const imageCategory = await classifyImage(fileName, userId, file.type);
                 if (imageCategory) {
                     console.log(`Image classified as: ${imageCategory}. Copying to category folder.`);
                     // We don't need to wait for this to finish to show the image in the main feed.
@@ -290,6 +325,49 @@ export const deleteFile = async (fileName: string, userId: string, category: str
   } catch (error) {
     console.error(`Error deleting file ${fileName}:`, error);
     throw error;
+  }
+};
+
+export const deleteFileFromAllLocations = async (fileName: string, userId: string): Promise<void> => {
+  console.log(`Starting deletion of ${fileName} from all locations for user ${userId}...`);
+  
+  const locations = [
+    `feedPosts/${userId}`, // Main folder
+    `feedPosts/${userId}/Church`, // Church category
+    `feedPosts/${userId}/Celebration`, // Celebration category
+    `feedPosts/${userId}/Party`, // Party category
+  ];
+
+  let successCount = 0;
+  let errorCount = 0;
+
+  for (const location of locations) {
+    const fullPath = `${location}/${fileName}`;
+    const fileRef = ref(storage, fullPath);
+    
+    console.log(`Attempting to delete from: ${fullPath}`);
+    
+    try {
+      await deleteObject(fileRef);
+      successCount++;
+      console.log(`✅ Successfully deleted ${fileName} from ${location}`);
+    } catch (error: any) {
+      if (error?.code === 'storage/object-not-found') {
+        console.log(`ℹ️ File ${fileName} not found in ${location} (this is normal)`);
+      } else {
+        errorCount++;
+        console.error(`❌ Error deleting ${fileName} from ${location}:`, error);
+        console.error(`Error code: ${error?.code}, message: ${error?.message}`);
+      }
+    }
+  }
+
+  console.log(`Deletion process completed for ${fileName}:`);
+  console.log(`- Successful deletions: ${successCount}`);
+  console.log(`- Errors encountered: ${errorCount}`);
+  
+  if (successCount === 0 && errorCount > 0) {
+    throw new Error(`Failed to delete ${fileName} from any location`);
   }
 };
 
