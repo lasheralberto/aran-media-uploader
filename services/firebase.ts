@@ -1,4 +1,4 @@
-// FIX: The previous namespace import `import * as firebaseApp from 'firebase/app'` was incorrect for Firebase v9+ modular SDK. The `initializeApp` function is a named export and should be imported directly.
+// FIX: Use a named import for initializeApp as is standard for Firebase v9+
 import { initializeApp } from "firebase/app";
 import { 
     getStorage, 
@@ -7,6 +7,8 @@ import {
     getDownloadURL, 
     list,
     deleteObject,
+    uploadBytes,
+    getBlob,
     type UploadTaskSnapshot,
     type StorageReference,
     type ListResult,
@@ -29,7 +31,7 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-// FIX: The namespace import `import * as firebaseApp` was incorrect. `initializeApp` is a named export and should be called directly.
+// FIX: Call initializeApp directly as per Firebase v9+ modular SDK.
 const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
 
@@ -46,6 +48,7 @@ export const uploadFile = async (
   file: File,
   onProgress: (progress: number) => void,
   userId: string,
+  category: string | null = null,
   maxRetries = 2
 ): Promise<string> => {
 
@@ -54,7 +57,8 @@ export const uploadFile = async (
     name.replace(/[\/\\#?]/g, '_');
 
   const fileName = `${Number.MAX_SAFE_INTEGER - Date.now()}-${sanitizeFileName(file.name)}`;
-  const fileRef = ref(storage, `feedPosts/${userId}/${fileName}`);
+  const basePath = category ? `feedPosts/${userId}/${category}` : `feedPosts/${userId}`;
+  const fileRef = ref(storage, `${basePath}/${fileName}`);
 
   // Set cache control headers for the uploaded file for better performance.
   const metadata: UploadMetadata = {
@@ -116,14 +120,20 @@ export interface ListMediaResult {
     nextPageToken?: string;
 }
 
-const PAGE_SIZE = 21; // A multiple of 3 for the grid layout
+const DEFAULT_PAGE_SIZE = 21; // A multiple of 3 for the grid layout
 
-export const listMediaFiles = async (userId: string, pageToken?: string): Promise<ListMediaResult> => {
+export const listMediaFiles = async (
+    userId: string, 
+    category: string | null = null, 
+    pageToken?: string,
+    pageSize: number = DEFAULT_PAGE_SIZE
+): Promise<ListMediaResult> => {
     try {
-        const mediaFolderRef = ref(storage, `feedPosts/${userId}`);
+        const basePath = category ? `feedPosts/${userId}/${category}` : `feedPosts/${userId}`;
+        const mediaFolderRef = ref(storage, basePath);
 
         const listResponse: ListResult = await list(mediaFolderRef, {
-            maxResults: PAGE_SIZE,
+            maxResults: pageSize,
             pageToken: pageToken,
         });
 
@@ -150,12 +160,49 @@ export const listMediaFiles = async (userId: string, pageToken?: string): Promis
     }
 };
 
-export const deleteFile = async (fileName: string, userId: string): Promise<void> => {
-    const fileRef = ref(storage, `feedPosts/${userId}/${fileName}`);
+export const deleteFile = async (fileName: string, userId: string, category: string | null = null): Promise<void> => {
+    const basePath = category ? `feedPosts/${userId}/${category}` : `feedPosts/${userId}`;
+    const fileRef = ref(storage, `${basePath}/${fileName}`);
     try {
         await deleteObject(fileRef);
     } catch (error) {
         console.error(`Error deleting file ${fileName}:`, error);
         throw error;
+    }
+};
+
+export const copyFileToCategory = async (
+  fileName: string,
+  userId: string,
+  category: string
+): Promise<void> => {
+    const sourceRef = ref(storage, `feedPosts/${userId}/${fileName}`);
+    const destinationRef = ref(storage, `feedPosts/${userId}/${category}/${fileName}`);
+
+    try {
+        // To "copy", we get the file as a blob directly from storage and re-upload it.
+        // This avoids CORS issues that can happen with fetch() on the download URL.
+        const blob = await getBlob(sourceRef);
+        
+        // Use the simpler uploadBytes for this background copy operation
+        await uploadBytes(destinationRef, blob);
+
+    } catch (error) {
+        console.error(`Failed to copy file '${fileName}' to category '${category}':`, error);
+        throw error;
+    }
+};
+
+export const checkCategoryContent = async (
+  userId: string,
+  category: string
+): Promise<boolean> => {
+    const categoryRef = ref(storage, `feedPosts/${userId}/${category}`);
+    try {
+        const result = await list(categoryRef, { maxResults: 1 });
+        return result.items.length > 0;
+    } catch (error) {
+        console.error(`Error checking content for category '${category}':`, error);
+        return false; // Assume no content on error
     }
 };

@@ -1,15 +1,36 @@
+
 import React, { useState, useEffect } from 'react';
-import { HeartIcon, CheckIcon } from './Icons';
+import { HeartIcon, CheckIcon, CloseIcon } from './Icons';
 import { getProfileImageUrl } from '../services/firebase';
  
+type CategoryInfo = {
+  id: string;
+  label: string;
+};
+
 interface HeaderProps {
   postCount: number;
   onOpenOptions: () => void;
   isVisible: boolean;
   userId: string;
+  isSelectionModeActive: boolean;
+  selectedItemsCount: number;
+  onCancelSelection: () => void;
+  categoriesWithContent: CategoryInfo[];
+  onCategoryBubbleClick: (categoryId: string) => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ postCount, onOpenOptions, isVisible, userId }) => {
+const Header: React.FC<HeaderProps> = ({ 
+    postCount, 
+    onOpenOptions, 
+    isVisible, 
+    userId,
+    isSelectionModeActive,
+    selectedItemsCount,
+    onCancelSelection,
+    categoriesWithContent,
+    onCategoryBubbleClick
+}) => {
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCopied, setIsCopied] = useState(false);
@@ -56,6 +77,22 @@ const Header: React.FC<HeaderProps> = ({ postCount, onOpenOptions, isVisible, us
         }
     }
   };
+
+  if (isSelectionModeActive) {
+      return (
+        <header className={`bg-white/90 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-200 transition-transform duration-300 ease-in-out ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}>
+            <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+                <button onClick={onCancelSelection} className="p-2 -ml-2 text-gray-600 hover:text-gray-900" aria-label="Cancelar selección">
+                    <CloseIcon className="h-6 w-6"/>
+                </button>
+                <h2 className="text-lg font-bold text-gray-800">{selectedItemsCount} seleccionado(s)</h2>
+                {/* Spacer to balance the header */}
+                <div className="w-10"></div>
+            </div>
+        </header>
+      );
+  }
+
 
   return (
     <header className={`bg-white/80 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-200 transition-transform duration-300 ease-in-out ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}>
@@ -123,6 +160,30 @@ const Header: React.FC<HeaderProps> = ({ postCount, onOpenOptions, isVisible, us
                     )}
                 </button>
             </div>
+
+            {/* Story Bubbles */}
+            {categoriesWithContent.length > 0 && (
+                <div className="pt-4 border-t border-gray-200 mt-4">
+                    <div className="flex items-center gap-4 -mx-4 px-4 overflow-x-auto">
+                        {categoriesWithContent.map(category => (
+                            <button 
+                                key={category.id}
+                                onClick={() => onCategoryBubbleClick(category.id)}
+                                className="flex flex-col items-center gap-1.5 flex-shrink-0 text-center focus:outline-none"
+                            >
+                                <div className="w-16 h-16 rounded-full p-0.5 bg-gradient-to-tr from-yellow-400 to-rose-500">
+                                    <div className="bg-white p-0.5 rounded-full">
+                                        <div className="w-full h-full bg-rose-100 rounded-full flex items-center justify-center text-2xl">
+                                            {category.id === 'Church' ? '⛪️' : category.id === 'Celebration' ? '🎉' : '🕺'}
+                                        </div>
+                                    </div>
+                                </div>
+                                <span className="text-xs font-medium text-gray-600">{category.label}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
 
       </div>

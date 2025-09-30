@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { MediaFile } from '../types';
 import MediaItem from './MediaItem';
@@ -9,9 +10,12 @@ interface MediaGridProps {
     onItemClick: (file: MediaFile) => void;
     lastElementRef: (node: HTMLDivElement | null) => void;
     hasMore: boolean;
+    selectionMode: boolean;
+    selectedItems: string[];
+    onLongPress: (file: MediaFile) => void;
 }
 
-const MediaGrid: React.FC<MediaGridProps> = ({ mediaFiles, isLoading, onItemClick, lastElementRef, hasMore }) => {
+const MediaGrid: React.FC<MediaGridProps> = ({ mediaFiles, isLoading, onItemClick, lastElementRef, hasMore, selectionMode, selectedItems, onLongPress }) => {
     if (isLoading) {
         return (
             <div className="grid grid-cols-3 gap-0.5">
@@ -35,14 +39,24 @@ const MediaGrid: React.FC<MediaGridProps> = ({ mediaFiles, isLoading, onItemClic
         <div className="grid grid-cols-3 gap-0.5">
             {mediaFiles.map((file, index) => {
                 const isLastElement = mediaFiles.length === index + 1;
+                const item = (
+                     <MediaItem
+                        file={file}
+                        onClick={() => onItemClick(file)}
+                        isSelectionMode={selectionMode}
+                        isSelected={selectedItems.includes(file.name)}
+                        onLongPress={() => onLongPress(file)}
+                    />
+                );
+
                 if (isLastElement && hasMore) {
                     return (
                         <div ref={lastElementRef} key={file.name}>
-                            <MediaItem file={file} onClick={() => onItemClick(file)} />
+                           {item}
                         </div>
                     );
                 }
-                return <MediaItem key={file.name} file={file} onClick={() => onItemClick(file)} />;
+                return <div key={file.name}>{item}</div>;
             })}
         </div>
     );
