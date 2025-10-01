@@ -391,10 +391,17 @@ export const checkCategoryContent = async (
 ): Promise<boolean> => {
   const categoryRef = ref(storage, `feedPosts/${userId}/${category}`);
   try {
-    const result = await list(categoryRef, { maxResults: 1 });
-    return result.items.length > 0;
+    // List with a small maxResults to check if there are actual files
+    const result = await list(categoryRef, { maxResults: 10 });
+    
+    // Only count actual file items, not prefixes (folders)
+    const hasItems = result.items.length > 0;
+    
+    // Return true only if there are actual file items (not just folders/prefixes)
+    return hasItems;
   } catch (error) {
-    console.error(`Error checking content for category '${category}':`, error);
-    return false; // Assume no content on error
+    // If the folder doesn't exist, Firebase throws an error
+    //console.log(`⚠️ Category "${category}" appears to be empty or doesn't exist:`, error);
+    return false;
   }
 };

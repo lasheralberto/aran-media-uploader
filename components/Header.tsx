@@ -36,6 +36,10 @@ const Header: React.FC<HeaderProps> = ({
   const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
+    console.log('📱 Header received categories:', categoriesWithContent);
+  }, [categoriesWithContent]);
+
+  useEffect(() => {
     const fetchImage = async () => {
         setIsLoading(true);
         try {
@@ -95,17 +99,17 @@ const Header: React.FC<HeaderProps> = ({
 
 
   return (
-    <header className={`bg-white/80 backdrop-blur-sm sticky top-0 z-10 border-b border-gray-200 transition-transform duration-300 ease-in-out ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}>
-      <div className="container mx-auto px-4 py-5">
-        <div className="flex flex-col gap-4">
+    <header className={`bg-white sticky top-0 z-10 border-b border-gray-200 transition-transform duration-300 ease-in-out ${isVisible ? 'translate-y-0' : '-translate-y-full'}`}>
+      <div className="container mx-auto px-4 py-3">
+        <div className="flex flex-col gap-3">
             {/* Row for avatar and KPIs */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-5">
                 <button 
                     onClick={onOpenOptions}
-                    className="flex-shrink-0 p-[2px] rounded-full bg-gradient-to-tr from-pink-500 via-red-500 to-yellow-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500"
+                    className="flex-shrink-0 p-[2px] rounded-full bg-gradient-to-tr from-purple-600 via-pink-500 to-orange-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
                     aria-label="Opciones de administrador"
                 >
-                    <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+                    <div className="w-20 h-20 rounded-full overflow-hidden bg-white flex items-center justify-center border-2 border-white">
                     {isLoading ? (
                         <div className="w-full h-full bg-gray-300 animate-pulse" />
                     ) : profileImageUrl ? (
@@ -116,64 +120,70 @@ const Header: React.FC<HeaderProps> = ({
                             />
 
                     ) : (
-                        <HeartIcon className="h-12 w-12 text-gray-400" />
+                        <HeartIcon className="h-10 w-10 text-gray-400" />
                     )}
                     </div>
                 </button>
 
-                <div className="flex-grow flex justify-evenly items-center text-center">
+                <div className="flex-grow flex justify-around items-center text-center">
                     <div>
-                        <span className="font-bold text-lg">{postCount}</span>
-                        <p className="text-sm text-gray-500">Posts</p>
+                        <div className="font-semibold text-base">{postCount}</div>
+                        <div className="text-xs text-gray-500">publicaciones</div>
                     </div>
                     <div>
-                        <span className="font-bold text-lg">150</span>
-                        <p className="text-sm text-gray-500">Invitados</p>
+                        <div className="font-semibold text-base">150</div>
+                        <div className="text-xs text-gray-500">invitados</div>
                     </div>
                     <div>
-                        <span className="font-bold text-lg">1.2k</span>
-                        <p className="text-sm text-gray-500">Likes</p>
+                        <div className="font-semibold text-base">1.2k</div>
+                        <div className="text-xs text-gray-500">me gusta</div>
                     </div>
-                     <button 
-                        onClick={handleShare}
-                        className="p-2 text-gray-600 hover:text-gray-900 transition-colors"
-                        aria-label="Compartir galería"
-                    >
-                        {isCopied ? (
-                            <CheckIcon className="h-6 w-6 text-green-600" />
-                        ) : (
-                            <ShareIcon className="h-6 w-6" />
-                        )}
-                    </button>
                 </div>
             </div>
             
             {/* Column for Bio and other info */}
-            <div>
-                <h1 className="text-lg font-semibold">#TheBodorrioGallery</h1>
-                <p className="text-sm text-gray-600 mt-1 whitespace-pre-line">
-                📸 Sube fotos o quedas fuera del testamento. <br /> 
-                💍 #Alberto&Mariona  <br />
+            <div className="space-y-1">
+                <h1 className="font-semibold text-sm">#TheBodorrioGallery</h1>
+                <p className="text-sm leading-tight">
+                📸 Sube fotos o quedas fuera del testamento.{' '}
+                💍 #Alberto&Mariona{' '}
                 🍾 Baila primero, etiqueta después.
                 </p>
+                <button 
+                    onClick={handleShare}
+                    className="mt-2 w-full py-1.5 px-3 bg-gray-100 hover:bg-gray-200 text-black text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2"
+                    aria-label="Compartir galería"
+                >
+                    {isCopied ? (
+                        <>
+                            <CheckIcon className="h-4 w-4 text-green-600" />
+                            <span className="text-green-600">¡Copiado!</span>
+                        </>
+                    ) : (
+                        <>
+                            <ShareIcon className="h-4 w-4" />
+                            <span>Compartir perfil</span>
+                        </>
+                    )}
+                </button>
             </div>
 
-            {/* Story Bubbles */}
+            {/* Story Bubbles - Instagram Style */}
             {categoriesWithContent.length > 0 && (
-                <div className="pt-3 border-t border-gray-200 mt-2">
-                    <div className="flex items-center gap-4 -mx-4 px-4 overflow-x-auto">
+                <div className="pt-2 border-t border-gray-100">
+                    <div className="flex items-center gap-4 -mx-4 px-4 overflow-x-auto pb-1 scrollbar-hide">
                         {categoriesWithContent.map(category => (
                             <button 
                                 key={category.id}
                                 onClick={() => onCategoryBubbleClick(category.id)}
-                                className="flex flex-col items-center gap-1.5 flex-shrink-0 text-center focus:outline-none"
+                                className="flex flex-col items-center gap-1 flex-shrink-0 text-center focus:outline-none active:opacity-70 transition-opacity"
                             >
-                                <div className="w-14 h-14 rounded-full p-0.5 bg-gradient-to-tr from-yellow-400 to-rose-500">
-                                    <div className="bg-white w-full h-full rounded-full flex items-center justify-center">
-                                        {category.id === 'Church' ? <ChurchIcon className="h-7 w-7 text-rose-500" /> : category.id === 'Celebration' ? <CelebrationIcon className="h-7 w-7 text-rose-500"/> : <PartyIcon className="h-7 w-7 text-rose-500"/>}
+                                <div className="w-16 h-16 rounded-full p-[2px] bg-gradient-to-tr from-purple-600 via-pink-500 to-orange-400">
+                                    <div className="bg-white w-full h-full rounded-full flex items-center justify-center border-2 border-white">
+                                        {category.id === 'Church' ? <ChurchIcon className="h-6 w-6 text-pink-500" /> : category.id === 'Celebration' ? <CelebrationIcon className="h-6 w-6 text-pink-500"/> : <PartyIcon className="h-6 w-6 text-pink-500"/>}
                                     </div>
                                 </div>
-                                <span className="text-xs font-medium text-gray-600">{category.label}</span>
+                                <span className="text-xs text-gray-900 max-w-[64px] truncate">{category.label}</span>
                             </button>
                         ))}
                     </div>

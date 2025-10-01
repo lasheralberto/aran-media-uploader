@@ -62,11 +62,14 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
 
 
     const refreshCategoryContentCheck = useCallback(async () => {
+        console.log('🔄 Refreshing category content check...');
         const checks = CATEGORIES.map(async (cat) => {
             const hasContent = await checkCategoryContent(userId, cat.id);
+            console.log(`📁 Category "${cat.label}" (${cat.id}): ${hasContent ? 'has content' : 'empty'}`);
             return hasContent ? cat.id : null;
         });
         const results = (await Promise.all(checks)).filter(Boolean) as Category[];
+        console.log('✅ Categories with content:', results);
         setCategoriesWithContent(results);
     }, [userId]);
 
@@ -144,13 +147,13 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             setUploadProgress,
             async () => {
                 await fetchMedia(); // On success: always refresh main view
+                await refreshCategoryContentCheck(); // Refresh categories after upload
             },
             (error) => {
                 alert('¡Ups! Algo ha fallado en la subida. ¿Quizás la foto es demasiado buena? Revisa la consola.');
                 console.error(error);
             },
             () => {
-                refreshCategoryContentCheck();
                 if (fileInputRef.current) {
                     fileInputRef.current.value = "";
                 }
@@ -188,6 +191,10 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                 copyFileToCategory(fileName, userId, category)
             );
             await Promise.all(copyPromises);
+            
+            // Refresh category content check immediately after copying
+            await refreshCategoryContentCheck();
+            
             alert(`${selectedItems.length} archivo(s) añadido(s) a '${CATEGORIES.find(c => c.id === category)?.label}' con éxito.`);
         } catch (error) {
             console.error("Error copying files:", error);
@@ -196,7 +203,6 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             setIsCopying(false);
             setIsSelectionModeActive(false);
             setSelectedItems([]);
-            refreshCategoryContentCheck();
         }
     };
 
@@ -254,7 +260,10 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             if (selectedMedia?.name === fileToDelete) {
                 setSelectedMedia(null);
             }
-            refreshCategoryContentCheck();
+            
+            // Refresh category content check after deletion
+            await refreshCategoryContentCheck();
+            
             alert('Archivo eliminado correctamente de todas las ubicaciones.');
         } catch (error) {
             console.error("Error deleting file:", error);
@@ -296,7 +305,9 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             setIsSelectionModeActive(false);
             setSelectedItems([]);
             
-            refreshCategoryContentCheck();
+            // Refresh category content check after multiple deletion
+            await refreshCategoryContentCheck();
+            
             alert(`${selectedItems.length} archivo(s) eliminado(s) correctamente de todas las ubicaciones.`);
         } catch (error) {
             console.error("Error deleting files:", error);
