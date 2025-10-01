@@ -48,7 +48,6 @@ const storageRefToBase64 = async (storageRef: StorageReference): Promise<string>
         
         // Use Firebase Storage's native getBlob method
         const blob = await getBlob(storageRef);
-        console.log('Blob size:', blob.size, 'type:', blob.type);
         
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -85,13 +84,10 @@ export async function classifyImage(
   mimeType: string,
 ): Promise<string | null> {
   try {
-    console.log('Starting image classification for file:', fileName);
-    console.log('MIME type:', mimeType);
     
     // Create storage reference directly
     const fileRef = ref(storage, `feedPosts/${userId}/${fileName}`);
     const base64ImageData = await storageRefToBase64(fileRef);
-    console.log('Successfully converted image to base64');
 
     const imagePart = {
       inlineData: {
@@ -101,10 +97,10 @@ export async function classifyImage(
     };
 
     const textPart = {
-      text: "Analyze this image from a wedding and classify it into one of the following three categories: 'Church', 'Celebration', or 'Party'. Your response must be a JSON object with a single 'category' key, like {\"category\": \"CATEGORY_NAME\"}. Only one of the three categories should be returned.",
+      text: "Analyze this image from a wedding and classify it into one of the following three categories: 'Church', 'Celebration', or 'Party'. Your response must be a JSON object with a single 'category' key, like {\"category\": \"CATEGORY_NAME\"}. Only one of the three categories should be returned. If you consider that the image does not fit any of these categories, respond with {\"category\": \"Unknown\"}.",
     };
 
-    console.log('Calling Gemini API for image classification...');
+ 
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: { parts: [imagePart, textPart] },
@@ -115,8 +111,8 @@ export async function classifyImage(
             properties: {
                 category: {
                     type: Type.STRING,
-                    description: 'The category of the image. Must be one of: Church, Celebration, Party.',
-                    enum: ['Church', 'Celebration', 'Party']
+                    description: 'The category of the image. Must be one of: Church, Celebration, Party, Unknown.',
+                    enum: ['Church', 'Celebration', 'Party', 'Unknown']
                 }
             },
             required: ['category']
@@ -125,23 +121,17 @@ export async function classifyImage(
     });
 
     const jsonString = response.text.trim();
-    console.log('Gemini API response:', jsonString);
     
     const result = JSON.parse(jsonString);
     
     if (result.category && ['Church', 'Celebration', 'Party'].includes(result.category)) {
-        console.log('Image successfully classified as:', result.category);
         return result.category;
     }
-    
-    console.warn("Classification result was not one of the expected categories:", result.category);
+     
     return null;
   } catch (error) {
-    console.error("Error classifying image:", error);
-    if (error instanceof Error) {
-      console.error("Error message:", error.message);
-      console.error("Error stack:", error.stack);
-    }
+ 
+    
     return null; // Return null if classification fails
   }
 }
@@ -207,15 +197,13 @@ export const uploadFile = async (
             if (file.type.startsWith('image/')) {
                 const imageCategory = await classifyImage(fileName, userId, file.type);
                 if (imageCategory) {
-                    console.log(`Image classified as: ${imageCategory}. Copying to category folder.`);
+ 
                     // We don't need to wait for this to finish to show the image in the main feed.
                     // Fire-and-forget, but log errors.
                     copyFileToCategory(fileName, userId, imageCategory).catch(err => {
                         console.error(`Failed to copy file ${fileName} to category ${imageCategory}:`, err);
                     });
-                } else {
-                    console.log("Image could not be classified.");
-                }
+                } 
             }
             resolve(url);
           } catch (err) {
