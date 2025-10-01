@@ -86,16 +86,59 @@ const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDele
             canvas.width = img.width + (padding * 2);
             canvas.height = img.height + padding + bottomPadding;
 
-            // Fondo blanco del Polaroid
-            ctx.fillStyle = '#ffffff';
+            // Fondo vintage con gradiente sutil (blanco amarillento)
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            gradient.addColorStop(0, '#fefefe');
+            gradient.addColorStop(0.5, '#fcfcf9');
+            gradient.addColorStop(1, '#f9f9f4');
+            ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Dibujar la imagen
-            ctx.drawImage(img, padding, padding, img.width, img.height);
+            // Añadir manchas vintage aleatorias (efecto desgastado)
+            ctx.globalAlpha = 0.08;
+            
+            // Mancha superior derecha
+            ctx.fillStyle = '#ebe7d0';
+            ctx.beginPath();
+            ctx.ellipse(canvas.width - 60, 30, 40, 40, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Mancha inferior izquierda
+            ctx.fillStyle = '#f0ece0';
+            ctx.beginPath();
+            ctx.ellipse(50, canvas.height - 60, 35, 35, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Mancha superior izquierda
+            ctx.fillStyle = '#f5f5e8';
+            ctx.beginPath();
+            ctx.ellipse(40, 40, 50, 50, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Mancha inferior derecha (cerca de la marca de agua)
+            ctx.fillStyle = '#ede9da';
+            ctx.beginPath();
+            ctx.ellipse(canvas.width - 80, canvas.height - 40, 60, 30, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.globalAlpha = 1.0;
 
-            // Configurar y dibujar la marca de agua
-            ctx.fillStyle = 'rgba(156, 163, 175, 0.7)'; // text-gray-400 con opacity
-            ctx.font = '16px monospace';
+            // Aplicar filtros vintage a la imagen
+            ctx.filter = 'contrast(1.05) saturate(0.95) brightness(0.98)';
+            ctx.drawImage(img, padding, padding, img.width, img.height);
+            ctx.filter = 'none';
+
+            // Añadir sombra interna sutil para efecto vintage
+            ctx.globalCompositeOperation = 'multiply';
+            ctx.globalAlpha = 0.05;
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(padding, padding, img.width, img.height);
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.globalAlpha = 1.0;
+
+            // Configurar y dibujar la marca de agua con estilo vintage
+            ctx.fillStyle = 'rgba(107, 114, 128, 0.6)'; // Más oscuro y vintage
+            ctx.font = 'italic 16px Georgia, serif'; // Fuente serif para más autenticidad
             ctx.textAlign = 'right';
             ctx.textBaseline = 'bottom';
             
@@ -103,7 +146,17 @@ const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDele
             const watermarkX = canvas.width - padding - 10;
             const watermarkY = canvas.height - padding + 10;
             
+            // Sombra sutil en el texto
+            ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
+            ctx.shadowBlur = 2;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = 0;
+            
             ctx.fillText(watermarkText, watermarkX, watermarkY);
+            
+            // Resetear sombra
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
 
             // Convertir canvas a blob y descargar
             canvas.toBlob((blob) => {
@@ -184,15 +237,26 @@ const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDele
 
             <div className="h-full w-full flex items-center justify-center p-4">
                 {file.type === 'image' ? (
-                    <div className="relative bg-white p-3 pb-10 rounded-md shadow-2xl inline-block max-w-md md:max-w-lg">
+                    <div className="relative bg-gradient-to-br from-[#fefefe] via-[#fcfcf9] to-[#f9f9f4] p-3 pb-10 rounded-sm shadow-2xl inline-block max-w-md md:max-w-lg rotate-[-0.5deg] border-t border-l border-white/80">
+                        {/* Efecto de manchas y desgaste en las esquinas */}
+                        <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden rounded-sm">
+                            <div className="absolute top-1 right-2 w-8 h-8 bg-[#f5f5e8] rounded-full opacity-30 blur-sm"></div>
+                            <div className="absolute bottom-12 left-1 w-6 h-6 bg-[#f5f5e8] rounded-full opacity-25 blur-sm"></div>
+                            <div className="absolute top-1 left-1 w-10 h-10 bg-[#f8f8f0] rounded-full opacity-20 blur-md"></div>
+                            <div className="absolute bottom-2 right-3 w-12 h-6 bg-[#ede9da] rounded-full opacity-15 blur-sm"></div>
+                        </div>
+                        
                         <img 
                             src={file.url} 
                             alt={file.name} 
-                            className="w-full h-auto rounded-sm object-contain" 
+                            className="w-full h-auto rounded-sm object-contain relative z-10 contrast-[1.05] saturate-[0.95] brightness-[0.98]" 
                         />
-                        <div className="absolute bottom-3 right-3 text-xs text-gray-400 opacity-70 font-mono tracking-wide">
+                        <div className="absolute bottom-3 right-3 text-xs text-gray-500/60 font-mono tracking-wide z-20 select-none" style={{ textShadow: '0 0 2px rgba(255,255,255,0.5)' }}>
                             17-01-2026 AM
                         </div>
+                        
+                        {/* Efecto de sombra vintage en el borde */}
+                        <div className="absolute inset-0 pointer-events-none rounded-sm shadow-[inset_0_0_20px_rgba(0,0,0,0.05)]"></div>
                     </div>
                 ) : (
                     <video src={file.url} className="max-w-full max-h-full object-contain" controls autoPlay></video>
