@@ -37,21 +37,94 @@ const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDele
 
     const handleDownload = async () => {
         setIsDownloading(true);
-        const blob = await getMediaBlob();
-        if (blob) {
-            try {
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = file.name;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(link.href);
-            } catch (error) {
-                console.error("Error downloading file:", error);
-                alert("No se pudo descargar el archivo.");
+        
+        // Si es video, descargar normalmente sin marco
+        if (file.type === 'video') {
+            const blob = await getMediaBlob();
+            if (blob) {
+                try {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = file.name;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(link.href);
+                } catch (error) {
+                    console.error("Error downloading file:", error);
+                    alert("No se pudo descargar el archivo.");
+                }
             }
+            setIsDownloading(false);
+            return;
         }
+
+        // Para imágenes, crear el marco Polaroid
+        try {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            
+            await new Promise((resolve, reject) => {
+                img.onload = resolve;
+                img.onerror = reject;
+                img.src = file.url;
+            });
+
+            // Configuración del canvas
+            const padding = 40; // Padding alrededor de la imagen
+            const bottomPadding = 120; // Espacio extra inferior para el efecto Polaroid
+            const watermarkHeight = 30; // Espacio para la marca de agua
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            if (!ctx) {
+                throw new Error('No se pudo obtener el contexto del canvas');
+            }
+
+            // Calcular dimensiones del canvas
+            canvas.width = img.width + (padding * 2);
+            canvas.height = img.height + padding + bottomPadding;
+
+            // Fondo blanco del Polaroid
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Dibujar la imagen
+            ctx.drawImage(img, padding, padding, img.width, img.height);
+
+            // Configurar y dibujar la marca de agua
+            ctx.fillStyle = 'rgba(156, 163, 175, 0.7)'; // text-gray-400 con opacity
+            ctx.font = '16px monospace';
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'bottom';
+            
+            const watermarkText = '17-01-2025 AM';
+            const watermarkX = canvas.width - padding - 10;
+            const watermarkY = canvas.height - padding + 10;
+            
+            ctx.fillText(watermarkText, watermarkX, watermarkY);
+
+            // Convertir canvas a blob y descargar
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = `polaroid_${file.name}`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(link.href);
+                } else {
+                    throw new Error('No se pudo crear el blob de la imagen');
+                }
+            }, 'image/jpeg', 0.95);
+
+        } catch (error) {
+            console.error("Error downloading file with Polaroid frame:", error);
+            alert("No se pudo descargar el archivo con el marco Polaroid.");
+        }
+        
         setIsDownloading(false);
     };
     
@@ -111,7 +184,16 @@ const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDele
 
             <div className="h-full w-full flex items-center justify-center p-4">
                 {file.type === 'image' ? (
-                    <img src={file.url} alt={file.name} className="max-w-full max-h-full object-contain" />
+                    <div className="relative bg-white p-3 pb-10 rounded-md shadow-2xl inline-block max-w-md md:max-w-lg">
+                        <img 
+                            src={file.url} 
+                            alt={file.name} 
+                            className="w-full h-auto rounded-sm object-contain" 
+                        />
+                        <div className="absolute bottom-3 right-3 text-xs text-gray-400 opacity-70 font-mono tracking-wide">
+                            17-01-2025 AM
+                        </div>
+                    </div>
                 ) : (
                     <video src={file.url} className="max-w-full max-h-full object-contain" controls autoPlay></video>
                 )}

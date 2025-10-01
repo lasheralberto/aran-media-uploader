@@ -18,7 +18,7 @@ interface MediaGridProps {
 const MediaGrid: React.FC<MediaGridProps> = ({ mediaFiles, isLoading, onItemClick, lastElementRef, hasMore, selectionMode, selectedItems, onLongPress }) => {
     if (isLoading) {
         return (
-            <div className="grid grid-cols-3 gap-0.5">
+            <div className="grid grid-cols-3 md:gap-1 gap-0.5">
                 {Array.from({ length: 9 }).map((_, index) => (
                     <SkeletonItem key={index} />
                 ))}
@@ -36,7 +36,7 @@ const MediaGrid: React.FC<MediaGridProps> = ({ mediaFiles, isLoading, onItemClic
     }
 
     return (
-        <div className="grid grid-cols-3 gap-0.5">
+        <div className="grid grid-cols-3 md:gap-1 gap-0.5">
             {mediaFiles.map((file, index) => {
                 const isLastElement = mediaFiles.length === index + 1;
                 const item = (

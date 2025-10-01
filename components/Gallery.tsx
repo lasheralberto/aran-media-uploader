@@ -325,7 +325,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
         : 0;
 
     return (
-        <div className="min-h-screen font-sans">
+        <div className="min-h-screen font-sans bg-gray-50">
             {storyViewerState && (
                 <StoryViewer
                     media={storyViewerState.media}
@@ -354,11 +354,11 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                         onCategoryBubbleClick={handleStoryBubbleClick}
                     />
                     
-                    <main className="container mx-auto">
+                    <main className="max-w-[935px] mx-auto px-0 md:px-4 md:pt-8">
                          {isUploading && <UploadProgress progress={totalProgress} />}
 
                         {isSelectionModeActive && (
-                             <div className="p-4">
+                             <div className="p-4 md:p-0 md:mb-4">
                                 <div className="grid grid-cols-3 gap-4 mb-4">
                                     {CATEGORIES.map(category => (
                                         <button 
@@ -420,13 +420,13 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             )}
 
             {!selectedMedia && !isSelectionModeActive && !storyViewerState &&(
-                 <div className="fixed bottom-6 right-6 z-20">
+                 <div className="fixed bottom-6 right-6 md:right-8 z-20">
                      <button
                         onClick={handleUploadClick}
-                        className="bg-rose-500 text-white rounded-full p-4 shadow-lg hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500 transition-transform transform hover:scale-110"
+                        className="bg-rose-500 text-white rounded-full p-4 md:p-5 shadow-lg hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500 transition-transform transform hover:scale-110"
                         aria-label="Subir archivos"
                     >
-                        <AddIcon className="h-8 w-8" />
+                        <AddIcon className="h-8 w-8 md:h-10 md:w-10" />
                     </button>
                 </div>
             )}
