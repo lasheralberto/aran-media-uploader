@@ -99,7 +99,7 @@ const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDele
             ctx.textAlign = 'right';
             ctx.textBaseline = 'bottom';
             
-            const watermarkText = '17-01-2025 AM';
+            const watermarkText = '17-01-2026 AM';
             const watermarkX = canvas.width - padding - 10;
             const watermarkY = canvas.height - padding + 10;
             
@@ -191,7 +191,7 @@ const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDele
                             className="w-full h-auto rounded-sm object-contain" 
                         />
                         <div className="absolute bottom-3 right-3 text-xs text-gray-400 opacity-70 font-mono tracking-wide">
-                            17-01-2025 AM
+                            17-01-2026 AM
                         </div>
                     </div>
                 ) : (
