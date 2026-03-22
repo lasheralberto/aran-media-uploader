@@ -1,11 +1,11 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { initializeApp } from "firebase/app";
 import {
-  GoogleAuthProvider,
   getAuth,
   onAuthStateChanged,
-  signInWithPopup,
+  signInAnonymously,
   signOut,
+  updateProfile,
   type User,
 } from "firebase/auth";
 import {
@@ -49,11 +49,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const storage = getStorage(app);
-const googleProvider = new GoogleAuthProvider();
-
-googleProvider.setCustomParameters({
-  prompt: 'select_account',
-});
+const GALLERY_PASSWORD = 'bodorrio';
 
 const MAX_PARALLEL_UPLOADS = 3;
 const MAX_UPLOAD_RETRIES = 4;
@@ -299,8 +295,25 @@ export const subscribeToAuthChanges = (callback: (user: User | null) => void) =>
   onAuthStateChanged(auth, callback)
 );
 
-export const signInWithGoogle = async (): Promise<User> => {
-  const result = await signInWithPopup(auth, googleProvider);
+export const signInToGallery = async (email: string, password: string): Promise<User> => {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (!normalizedEmail) {
+    throw { code: 'auth/missing-email' };
+  }
+
+  if (password !== GALLERY_PASSWORD) {
+    throw { code: 'auth/invalid-gallery-password' };
+  }
+
+  const result = await signInAnonymously(auth);
+
+  if (result.user.displayName !== normalizedEmail) {
+    await updateProfile(result.user, {
+      displayName: normalizedEmail,
+    });
+  }
+
   return result.user;
 };
 

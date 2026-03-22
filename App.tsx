@@ -3,7 +3,7 @@ import type { User } from 'firebase/auth';
 import AuthScreen from './components/AuthScreen';
 import Gallery from './components/Gallery';
 import Spinner from './components/Spinner';
-import { signInWithGoogle, signOutCurrentUser, subscribeToAuthChanges } from './services/firebase';
+import { signInToGallery, signOutCurrentUser, subscribeToAuthChanges } from './services/firebase';
 
 const getAuthErrorMessage = (error: unknown): string => {
     const code = typeof error === 'object' && error !== null && 'code' in error
@@ -11,14 +11,12 @@ const getAuthErrorMessage = (error: unknown): string => {
         : '';
 
     switch (code) {
-        case 'auth/popup-closed-by-user':
-            return 'Has cerrado la ventana de acceso antes de completar el login.';
-        case 'auth/popup-blocked':
-            return 'El navegador ha bloqueado la ventana emergente. Permite popups e intentalo de nuevo.';
-        case 'auth/unauthorized-domain':
-            return 'Este dominio no esta autorizado en Firebase Authentication. Anade el dominio actual en la consola de Firebase.';
+        case 'auth/missing-email':
+            return 'Introduce un email para identificarte en la galeria.';
+        case 'auth/invalid-gallery-password':
+            return 'La clave no es correcta.';
         case 'auth/operation-not-allowed':
-            return 'El proveedor de Google no esta habilitado en Firebase Authentication.';
+            return 'El proveedor Anonymous no esta habilitado en Firebase Authentication.';
         default:
             return 'No se pudo iniciar sesion. Revisa la configuracion de Firebase Authentication.';
     }
@@ -39,14 +37,14 @@ const App: React.FC = () => {
         return unsubscribe;
     }, []);
 
-    const handleSignIn = async () => {
+    const handleSignIn = async (email: string, password: string) => {
         setIsSigningIn(true);
         setAuthError(null);
 
         try {
-            await signInWithGoogle();
+            await signInToGallery(email, password);
         } catch (error) {
-            console.error('Error signing in with Google:', error);
+            console.error('Error signing in to gallery:', error);
             setAuthError(getAuthErrorMessage(error));
         } finally {
             setIsSigningIn(false);

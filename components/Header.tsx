@@ -172,7 +172,6 @@ const Header: React.FC<HeaderProps> = ({
                 <div className="flex items-center gap-6">
                   <div>
                     <h1 className="text-[28px] font-light tracking-tight text-neutral-900">thebodorriogallery</h1>
-                    <p className="mt-1 text-sm text-neutral-500">Alberto y Mariona · {currentUserName}</p>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
@@ -219,7 +218,7 @@ const Header: React.FC<HeaderProps> = ({
 
                 <div className="max-w-xl space-y-1.5 text-sm leading-6 text-neutral-700">
                   <p className="font-semibold text-neutral-900">Boda de Alberto y Mariona</p>
-                  <p>Sube aqui tus recuerdos favoritos del dia. Fotos, videos y momentos espontaneos para revivir la boda como un feed compartido.</p>
+                  <p>170126</p>
                   <p className="text-neutral-500">#TheBodorrioGallery #AlbertoYMariona</p>
                 </div>
               </div>

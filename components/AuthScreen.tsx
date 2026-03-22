@@ -1,12 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface AuthScreenProps {
-    onSignIn: () => Promise<void> | void;
+    onSignIn: (email: string, password: string) => Promise<void> | void;
     isSigningIn: boolean;
     errorMessage: string | null;
 }
 
 const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, isSigningIn, errorMessage }) => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+
+    const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        void onSignIn(email, password);
+    };
+
     return (
         <div className="relative min-h-screen overflow-hidden bg-[#f6efe6] text-neutral-950">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(203,120,56,0.22),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(118,82,53,0.18),_transparent_28%),linear-gradient(135deg,_rgba(255,255,255,0.55),_rgba(255,255,255,0))]" />
@@ -21,7 +29,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, isSigningIn, errorMes
                             Las fotos solo se ven con sesion iniciada.
                         </h1>
                         <p className="mt-6 max-w-lg text-base leading-7 text-neutral-700 md:text-lg">
-                            Accede con tu cuenta de Google para entrar en la galeria de Alberto y Mariona, ver los recuerdos compartidos y subir nuevos momentos del dia.
+                            Entra con tu email y la clave compartida para acceder a la galeria de Alberto y Mariona, ver los recuerdos compartidos y subir nuevos momentos del dia.
                         </p>
                     </section>
 
@@ -30,18 +38,45 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, isSigningIn, errorMes
                             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/60">Acceso</p>
                             <p className="mt-2 text-2xl font-semibold tracking-tight">Inicia sesion para entrar</p>
                             <p className="mt-2 text-sm leading-6 text-white/70">
-                                Si el acceso falla, revisa que Google Sign-In este habilitado en Firebase Authentication y que el dominio actual este autorizado.
+                                El email puede ser cualquiera. La clave compartida de la galeria es necesaria para desbloquear el acceso.
                             </p>
                         </div>
 
-                        <button
-                            onClick={onSignIn}
-                            disabled={isSigningIn}
-                            className="mt-6 flex w-full items-center justify-center gap-3 rounded-2xl bg-[#b76e4d] px-5 py-4 text-sm font-semibold text-white transition hover:bg-[#9f5f41] focus:outline-none focus:ring-2 focus:ring-[#b76e4d] focus:ring-offset-2 disabled:cursor-wait disabled:opacity-70"
-                        >
-                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-bold text-[#b76e4d]">G</span>
-                            <span>{isSigningIn ? 'Abriendo acceso...' : 'Entrar con Google'}</span>
-                        </button>
+                        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+                            <div>
+                                <label htmlFor="gallery-email" className="mb-2 block text-sm font-semibold text-neutral-900">Email</label>
+                                <input
+                                    id="gallery-email"
+                                    type="email"
+                                    value={email}
+                                    onChange={(event) => setEmail(event.target.value)}
+                                    placeholder="tu@email.com"
+                                    className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b76e4d] focus:ring-2 focus:ring-[#b76e4d]/20"
+                                    autoComplete="email"
+                                    disabled={isSigningIn}
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="gallery-password" className="mb-2 block text-sm font-semibold text-neutral-900">Clave</label>
+                                <input
+                                    id="gallery-password"
+                                    type="password"
+                                    value={password}
+                                    onChange={(event) => setPassword(event.target.value)}
+                                    placeholder="Introduce la clave"
+                                    className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b76e4d] focus:ring-2 focus:ring-[#b76e4d]/20"
+                                    autoComplete="current-password"
+                                    disabled={isSigningIn}
+                                />
+                            </div>
+                            <button
+                                type="submit"
+                                disabled={isSigningIn}
+                                className="flex w-full items-center justify-center gap-3 rounded-2xl bg-[#b76e4d] px-5 py-4 text-sm font-semibold text-white transition hover:bg-[#9f5f41] focus:outline-none focus:ring-2 focus:ring-[#b76e4d] focus:ring-offset-2 disabled:cursor-wait disabled:opacity-70"
+                            >
+                                <span>{isSigningIn ? 'Abriendo acceso...' : 'Entrar en la galeria'}</span>
+                            </button>
+                        </form>
 
                         {errorMessage && (
                             <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

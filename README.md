@@ -14,7 +14,7 @@ Galeria privada para compartir fotos y videos con Firebase Storage.
 ## Configuracion de Firebase Authentication
 
 1. En Firebase Console, activa Authentication.
-2. Habilita el proveedor Google.
+2. Habilita el proveedor Anonymous.
 3. Anade los dominios desde los que vayas a abrir la app en Authorized domains.
 4. Publica las reglas de Storage de este repositorio para exigir usuario autenticado.
 
@@ -22,4 +22,4 @@ Galeria privada para compartir fotos y videos con Firebase Storage.
 
 1. Instala dependencias con `npm install`.
 2. Arranca la app con `npm run dev`.
-3. Inicia sesion con Google para entrar en la galeria.
+3. Entra con cualquier email y la clave compartida `bodorrio` para acceder a la galeria.
