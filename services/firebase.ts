@@ -80,13 +80,36 @@ interface UploadProgressUpdate {
   error?: string;
 }
 
+const HIDDEN_STORAGE_FILE_PREFIX = '.';
+
 const sanitizeFileName = (name: string) => name.replace(/[\/\\#?]/g, '_');
+
+export const normalizeFolderName = (name: string): string => (
+  name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-')
+);
 
 const buildStoredFileName = (name: string) => `${Number.MAX_SAFE_INTEGER - Date.now()}-${sanitizeFileName(name)}`;
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const THUMBNAIL_FOLDER = 'thumbnails';
+
+const buildMediaBasePath = (userId: string, category: string | null = null): string => (
+  category ? `feedPosts/${userId}/${category}` : `feedPosts/${userId}`
+);
+
+const buildThumbnailBasePath = (userId: string, category: string | null = null): string => (
+  category ? `${buildMediaBasePath(userId, category)}/${THUMBNAIL_FOLDER}` : `${buildMediaBasePath(userId)}/${THUMBNAIL_FOLDER}`
+);
+
+const isVisibleMediaItem = (itemRef: StorageReference): boolean => !itemRef.name.startsWith(HIDDEN_STORAGE_FILE_PREFIX);
 
 const shouldGenerateThumbnail = (file: File) => file.type.startsWith('image/');
 
@@ -149,17 +172,17 @@ const createThumbnailBlob = async (file: File): Promise<Blob | null> => {
   return canvasToBlob(canvas, 'image/webp', THUMBNAIL_QUALITY);
 };
 
-const uploadThumbnail = async (thumbnailBlob: Blob, userId: string, fileName: string): Promise<void> => {
-  const thumbnailRef = ref(storage, `feedPosts/${userId}/${THUMBNAIL_FOLDER}/${fileName}`);
+const uploadThumbnail = async (thumbnailBlob: Blob, userId: string, fileName: string, category: string | null = null): Promise<void> => {
+  const thumbnailRef = ref(storage, `${buildThumbnailBasePath(userId, category)}/${fileName}`);
   await uploadBytes(thumbnailRef, thumbnailBlob, {
     cacheControl: 'public, max-age=31536000, immutable',
     contentType: thumbnailBlob.type || 'image/webp',
   });
 };
 
-const getThumbnailUrl = async (userId: string, fileName: string): Promise<string | undefined> => {
+const getThumbnailUrl = async (userId: string, fileName: string, category: string | null = null): Promise<string | undefined> => {
   try {
-    const thumbnailRef = ref(storage, `feedPosts/${userId}/${THUMBNAIL_FOLDER}/${fileName}`);
+    const thumbnailRef = ref(storage, `${buildThumbnailBasePath(userId, category)}/${fileName}`);
     return await getDownloadURL(thumbnailRef);
   } catch (error: any) {
     if (error?.code !== 'storage/object-not-found') {
@@ -325,10 +348,11 @@ export const uploadFile = async (
   file: File,
   userId: string,
   onProgress: (update: UploadProgressUpdate) => void,
-  maxRetries = MAX_UPLOAD_RETRIES
+  maxRetries = MAX_UPLOAD_RETRIES,
+  category: string | null = null
 ): Promise<string> => {
   const fileName = buildStoredFileName(file.name);
-  const basePath = `feedPosts/${userId}`;
+  const basePath = buildMediaBasePath(userId, category);
   const fileRef = ref(storage, `${basePath}/${fileName}`);
 
   const metadata: UploadMetadata = {
@@ -390,7 +414,7 @@ export const uploadFile = async (
         try {
           const thumbnailBlob = await createThumbnailBlob(file);
           if (thumbnailBlob) {
-            await uploadThumbnail(thumbnailBlob, userId, fileName);
+            await uploadThumbnail(thumbnailBlob, userId, fileName, category);
           }
         } catch (thumbnailError) {
           console.warn(`No se pudo generar la miniatura para ${file.name}:`, thumbnailError);
@@ -438,7 +462,8 @@ export const handleFileUploadProcess = async (
   setUploadState: Dispatch<SetStateAction<UploadBatchState | null>>,
   onSuccess: (summary: UploadBatchSummary) => Promise<void>,
   onError: (error: any) => void,
-  onFinally: () => void
+  onFinally: () => void,
+  category: string | null = null
 ) => {
   if (!files || files.length === 0) return;
 
@@ -478,7 +503,7 @@ export const handleFileUploadProcess = async (
               attempts: update.attempts ?? current.attempts,
               error: update.error,
             }));
-          });
+          }, MAX_UPLOAD_RETRIES, category);
           successful.push(entry.fileName);
         } catch (error) {
           failed.push({
@@ -527,10 +552,10 @@ const DEFAULT_PAGE_SIZE = 20;
 
 export const countMediaFiles = async (userId: string, category: string | null = null): Promise<number> => {
   try {
-    const basePath = category ? `feedPosts/${userId}/${category}` : `feedPosts/${userId}`;
+    const basePath = buildMediaBasePath(userId, category);
     const mediaFolderRef = ref(storage, basePath);
     const result = await listAll(mediaFolderRef);
-    return result.items.length;
+    return result.items.filter(isVisibleMediaItem).length;
   } catch (error) {
     console.error('Error counting files:', error);
     return 0;
@@ -544,7 +569,7 @@ export const listMediaFiles = async (
   pageSize: number = DEFAULT_PAGE_SIZE
 ): Promise<ListMediaResult> => {
   try {
-    const basePath = category ? `feedPosts/${userId}/${category}` : `feedPosts/${userId}`;
+    const basePath = buildMediaBasePath(userId, category);
     const mediaFolderRef = ref(storage, basePath);
 
     const listResponse: ListResult = await list(mediaFolderRef, {
@@ -552,11 +577,11 @@ export const listMediaFiles = async (
       pageToken: pageToken,
     });
 
-    const mediaFilesPromises = listResponse.items.map(async (itemRef: StorageReference) => {
+    const mediaFilesPromises = listResponse.items.filter(isVisibleMediaItem).map(async (itemRef: StorageReference) => {
       const url = await getDownloadURL(itemRef);
       const type = getFileType(itemRef.name);
       const previewUrl = type === 'image'
-        ? await getThumbnailUrl(userId, itemRef.name) ?? url
+        ? await getThumbnailUrl(userId, itemRef.name, category) ?? url
         : undefined;
 
       return {
@@ -582,7 +607,7 @@ export const listMediaFiles = async (
 };
 
 export const deleteFile = async (fileName: string, userId: string, category: string | null = null): Promise<void> => {
-  const basePath = category ? `feedPosts/${userId}/${category}` : `feedPosts/${userId}`;
+  const basePath = buildMediaBasePath(userId, category);
   const fileRef = ref(storage, `${basePath}/${fileName}`);
   try {
     await deleteObject(fileRef);
@@ -592,12 +617,74 @@ export const deleteFile = async (fileName: string, userId: string, category: str
   }
 };
 
-export const deleteFileFromAllLocations = async (fileName: string, userId: string): Promise<void> => {
+export const listMediaFolders = async (userId: string): Promise<string[]> => {
+  try {
+    const rootFolderRef = ref(storage, buildMediaBasePath(userId));
+    const result = await listAll(rootFolderRef);
+
+    return result.prefixes
+      .map(prefix => prefix.name)
+      .filter(prefix => prefix !== THUMBNAIL_FOLDER)
+      .sort((left, right) => left.localeCompare(right, 'es'));
+  } catch (error) {
+    console.error('Error listing media folders:', error);
+    return [];
+  }
+};
+
+export const createMediaFolder = async (userId: string, folderName: string): Promise<string> => {
+  const normalizedFolderName = normalizeFolderName(folderName);
+
+  if (!normalizedFolderName) {
+    throw new Error('Introduce un nombre de carpeta válido.');
+  }
+
+  const placeholderRef = ref(storage, `${buildThumbnailBasePath(userId, normalizedFolderName)}/.keep`);
+  await uploadBytes(placeholderRef, new Blob([''], { type: 'text/plain' }), {
+    cacheControl: 'no-store',
+    contentType: 'text/plain',
+  });
+
+  return normalizedFolderName;
+};
+
+export const deleteFileFromAllLocations = async (fileName: string, userId: string, category: string | null = null): Promise<void> => {
+  if (category) {
+    const locations = [
+      buildMediaBasePath(userId, category),
+      buildThumbnailBasePath(userId, category),
+    ];
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const location of locations) {
+      const fullPath = `${location}/${fileName}`;
+      const fileRef = ref(storage, fullPath);
+
+      try {
+        await deleteObject(fileRef);
+        successCount += 1;
+      } catch (error: any) {
+        if (error?.code !== 'storage/object-not-found') {
+          errorCount += 1;
+          console.error(`Error deleting ${fileName} from ${location}:`, error);
+        }
+      }
+    }
+
+    if (successCount === 0 && errorCount > 0) {
+      throw new Error(`Failed to delete ${fileName} from ${category}`);
+    }
+
+    return;
+  }
+
   console.log(`Starting deletion of ${fileName} from all locations for user ${userId}...`);
   
   const locations = [
-    `feedPosts/${userId}`, // Main folder
-    `feedPosts/${userId}/${THUMBNAIL_FOLDER}`, // Thumbnails
+    buildMediaBasePath(userId), // Main folder
+    buildThumbnailBasePath(userId), // Thumbnails
     `feedPosts/${userId}/Church`, // Church category
     `feedPosts/${userId}/Celebration`, // Celebration category
     `feedPosts/${userId}/Party`, // Party category

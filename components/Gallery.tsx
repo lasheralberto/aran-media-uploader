@@ -11,6 +11,8 @@ import Spinner from './Spinner';
 import MasterKeyModal from './MasterKeyModal';
 import ConfirmModal from './ConfirmModal';
 import GalleryLoadStatus from './GalleryLoadStatus';
+import FolderManager from './FolderManager';
+import { createMediaFolder, listMediaFolders } from '../services/firebase';
 
 const BACKGROUND_PRELOAD_CONCURRENCY = 2;
 const BACKGROUND_PRELOAD_DELAY_MS = 250;
@@ -92,6 +94,10 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
 
     const [isAdmin, setIsAdmin] = useState<boolean>(false);
     const [isMasterKeyModalOpen, setIsMasterKeyModalOpen] = useState<boolean>(false);
+    const [folders, setFolders] = useState<string[]>([]);
+    const [activeFolder, setActiveFolder] = useState<string | null>(null);
+    const [isCreatingFolder, setIsCreatingFolder] = useState<boolean>(false);
+    const [isFolderManagerVisible, setIsFolderManagerVisible] = useState<boolean>(true);
 
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState<boolean>(false);
     const [fileToDelete, setFileToDelete] = useState<string | null>(null);
@@ -110,6 +116,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
     const lastPreloadedMediaIndexRef = useRef(0);
 
     const selectedMedia = selectedMediaIndex !== null ? mediaFiles[selectedMediaIndex] ?? null : null;
+    const destinationTabs = [null, ...(isAdmin ? folders : [])];
 
     useEffect(() => {
         const SCROLL_THRESHOLD = 10;
@@ -130,8 +137,13 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
     }, []);
 
     const refreshTotalMediaCount = useCallback(async () => {
-        const total = await countMediaFiles(userId);
+        const total = await countMediaFiles(userId, activeFolder);
         setTotalMediaCount(total);
+    }, [activeFolder, userId]);
+
+    const refreshFolders = useCallback(async () => {
+        const nextFolders = await listMediaFolders(userId);
+        setFolders(nextFolders);
     }, [userId]);
 
     const fetchMedia = useCallback(async (token?: string) => {
@@ -146,7 +158,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
             setIsLoadingMore(true);
         }
 
-        const { files, nextPageToken: newToken } = await listMediaFiles(userId, null, token);
+        const { files, nextPageToken: newToken } = await listMediaFiles(userId, activeFolder, token);
 
         setMediaFiles(prev => isInitialFetch ? files : [...prev, ...files]);
         setNextPageToken(newToken);
@@ -155,12 +167,20 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
         }
         setIsLoading(false);
         setIsLoadingMore(false);
-    }, [userId]);
+    }, [activeFolder, userId]);
 
     useEffect(() => {
         fetchMedia();
         refreshTotalMediaCount();
     }, [fetchMedia, refreshTotalMediaCount]);
+
+    useEffect(() => {
+        if (!isAdmin) {
+            return;
+        }
+
+        void refreshFolders();
+    }, [isAdmin, refreshFolders]);
 
     useEffect(() => {
         if (mediaFiles.length === 0 || shouldSkipBackgroundPreload()) {
@@ -279,7 +299,8 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
                 if (fileInputRef.current) {
                     fileInputRef.current.value = '';
                 }
-            }
+            },
+            activeFolder,
         );
     };
 
@@ -404,6 +425,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
     const handleMasterKeySubmit = (key: string) => {
         if (key === 'bodorrio') {
             setIsAdmin(true);
+            setIsFolderManagerVisible(true);
             setIsMasterKeyModalOpen(false);
             alert('Modo administrador activado.');
         } else {
@@ -426,7 +448,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
 
         if (!fileToDelete) return;
         try {
-            await deleteFileFromAllLocations(fileToDelete, userId);
+            await deleteFileFromAllLocations(fileToDelete, userId, activeFolder);
             setMediaFiles(prev => prev.filter(file => file.name !== fileToDelete));
             setTotalMediaCount(prev => Math.max(0, prev - 1));
             if (selectedMedia?.name === fileToDelete) {
@@ -460,7 +482,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
         setIsDeleting(true);
         try {
             const deletePromises = selectedItems.map(fileName =>
-                deleteFileFromAllLocations(fileName, userId)
+                deleteFileFromAllLocations(fileName, userId, activeFolder)
             );
             await Promise.all(deletePromises);
             setMediaFiles(prev => prev.filter(file => !selectedItems.includes(file.name)));
@@ -479,6 +501,22 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
             setIsMultipleDeleteModalOpen(false);
         }
     };
+
+    const handleCreateFolder = useCallback(async (folderName: string) => {
+        setIsCreatingFolder(true);
+
+        try {
+            const createdFolder = await createMediaFolder(userId, folderName);
+            await refreshFolders();
+            setActiveFolder(createdFolder);
+            alert(`Carpeta ${createdFolder} creada correctamente.`);
+        } catch (error) {
+            console.error('Error creating folder:', error);
+            alert(error instanceof Error ? error.message : 'No se pudo crear la carpeta.');
+        } finally {
+            setIsCreatingFolder(false);
+        }
+    }, [refreshFolders, userId]);
 
     return (
         <div className="min-h-screen bg-white text-neutral-950">
@@ -507,10 +545,43 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
                         isSelectionModeActive={isSelectionModeActive}
                         selectedItemsCount={selectedItems.length}
                         onCancelSelection={handleCancelSelection}
+                        isAdmin={isAdmin}
+                        isFolderManagerVisible={isFolderManagerVisible}
+                        onToggleFolderManager={() => setIsFolderManagerVisible(previous => !previous)}
                     />
 
                     <main className="mx-auto max-w-[935px] px-0 md:px-4 md:pt-6">
                         {isUploading && uploadState && <UploadProgress state={uploadState} />}
+
+                        {isAdmin && !isSelectionModeActive && (
+                            <div className="mb-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 md:mb-6 md:px-0">
+                                {destinationTabs.map((folder) => {
+                                    const isActive = activeFolder === folder;
+                                    const label = folder ?? 'Raíz';
+
+                                    return (
+                                        <button
+                                            key={label}
+                                            type="button"
+                                            onClick={() => setActiveFolder(folder)}
+                                            className={`whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition ${isActive ? 'border-neutral-950 bg-neutral-950 text-white' : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-500 hover:text-neutral-950'}`}
+                                        >
+                                            {label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {isAdmin && !isSelectionModeActive && isFolderManagerVisible && (
+                            <div className="px-4 md:px-0">
+                                <FolderManager
+                                    isCreating={isCreatingFolder}
+                                    onCreateFolder={handleCreateFolder}
+                                    onClose={() => setIsFolderManagerVisible(false)}
+                                />
+                            </div>
+                        )}
 
                         {isSelectionModeActive && (
                             <div className="sticky top-[72px] z-20 border-y border-neutral-200 bg-white/95 px-4 py-3 backdrop-blur md:top-[88px] md:mb-4 md:rounded-2xl md:border md:px-5">

@@ -12,6 +12,9 @@ interface HeaderProps {
   isSelectionModeActive: boolean;
   selectedItemsCount: number;
   onCancelSelection: () => void;
+  isAdmin: boolean;
+  isFolderManagerVisible: boolean;
+  onToggleFolderManager: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
@@ -23,7 +26,10 @@ const Header: React.FC<HeaderProps> = ({
   onSignOut,
   isSelectionModeActive,
   selectedItemsCount,
-  onCancelSelection
+  onCancelSelection,
+  isAdmin,
+  isFolderManagerVisible,
+  onToggleFolderManager,
 }) => {
   const [profileImageUrl, setProfileImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -147,6 +153,16 @@ const Header: React.FC<HeaderProps> = ({
                   </div>
                 </div>
 
+                {isAdmin && (
+                  <button
+                    onClick={onToggleFolderManager}
+                    className="inline-flex w-full items-center justify-center rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-100"
+                    aria-label={isFolderManagerVisible ? 'Ocultar creador de carpetas' : 'Mostrar creador de carpetas'}
+                  >
+                    {isFolderManagerVisible ? 'Ocultar creador de carpetas' : 'Mostrar creador de carpetas'}
+                  </button>
+                )}
+
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
                     <div className="text-base font-semibold text-neutral-900">{postCount}</div>
@@ -174,6 +190,15 @@ const Header: React.FC<HeaderProps> = ({
                     <h1 className="text-[28px] font-light tracking-tight text-neutral-900">thebodorriogallery</h1>
                   </div>
                   <div className="flex items-center gap-3">
+                    {isAdmin && (
+                      <button
+                        onClick={onToggleFolderManager}
+                        className="inline-flex items-center rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-100"
+                        aria-label={isFolderManagerVisible ? 'Ocultar creador de carpetas' : 'Mostrar creador de carpetas'}
+                      >
+                        {isFolderManagerVisible ? 'Ocultar carpetas' : 'Nueva carpeta'}
+                      </button>
+                    )}
                     <button
                       onClick={handleShare}
                       className="inline-flex items-center gap-2 rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-900 transition hover:bg-neutral-100"
