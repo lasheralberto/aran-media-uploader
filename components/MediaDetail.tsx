@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MediaFile } from '../types';
-import { BackIcon, HeartIcon, CommentIcon, ShareIcon, DownloadIcon, CheckIcon, TrashIcon } from './Icons';
+import { BackIcon, ChevronLeftIcon, ChevronRightIcon, HeartIcon, CommentIcon, ShareIcon, DownloadIcon, CheckIcon, TrashIcon } from './Icons';
 import Spinner from './Spinner';
 
 interface MediaDetailProps {
@@ -9,13 +9,23 @@ interface MediaDetailProps {
     onBack: () => void;
     isAdmin: boolean;
     onDelete: (fileName: string) => void;
+    onPrevious: () => void;
+    onNext: () => void;
+    hasPrevious: boolean;
+    hasNext: boolean;
+    currentIndex: number;
+    totalItems: number;
 }
 
-const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDelete }) => {
+const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDelete, onPrevious, onNext, hasPrevious, hasNext, currentIndex, totalItems }) => {
     const [isDownloading, setIsDownloading] = useState(false);
     const [isSharing, setIsSharing] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
     const [isFullResolutionLoaded, setIsFullResolutionLoaded] = useState(false);
+
+    useEffect(() => {
+        setIsFullResolutionLoaded(false);
+    }, [file.url]);
 
     const handleDelete = () => {
         onDelete(file.name);
@@ -110,9 +120,33 @@ const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDele
                 <BackIcon className="h-6 w-6"/>
             </button>
 
+            <div className="pointer-events-none absolute inset-x-0 top-4 z-20 flex justify-center px-16 md:top-5">
+                <div className="rounded-full border border-white/10 bg-black/35 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-white/80 backdrop-blur-md">
+                    {currentIndex + 1} / {totalItems}
+                </div>
+            </div>
+
             <div className="flex h-full w-full items-center justify-center p-0 md:p-6">
                 <div className="flex h-full w-full max-w-[1180px] overflow-hidden bg-white md:h-auto md:max-h-[88vh] md:rounded-[28px] md:shadow-[0_30px_80px_rgba(0,0,0,0.35)]">
                     <div className="relative flex min-h-[58vh] flex-1 items-center justify-center bg-neutral-950 md:min-h-[720px]">
+                        <button
+                            onClick={onPrevious}
+                            disabled={!hasPrevious}
+                            className="absolute left-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white backdrop-blur-md transition hover:bg-black/55 disabled:cursor-not-allowed disabled:opacity-35 md:left-5 md:h-12 md:w-12"
+                            aria-label="Imagen anterior"
+                        >
+                            <ChevronLeftIcon className="h-6 w-6" />
+                        </button>
+
+                        <button
+                            onClick={onNext}
+                            disabled={!hasNext}
+                            className="absolute right-3 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white backdrop-blur-md transition hover:bg-black/55 disabled:cursor-not-allowed disabled:opacity-35 md:right-5 md:h-12 md:w-12"
+                            aria-label="Imagen siguiente"
+                        >
+                            <ChevronRightIcon className="h-6 w-6" />
+                        </button>
+
                         {file.type === 'image' ? (
                             <>
                                 {file.previewUrl && file.previewUrl !== file.url && !isFullResolutionLoaded && (
@@ -122,6 +156,19 @@ const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDele
                                         className="absolute inset-0 h-full w-full object-contain blur-xl scale-105 opacity-70"
                                         aria-hidden="true"
                                     />
+                                )}
+                                {!isFullResolutionLoaded && (
+                                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6">
+                                        <div className="rounded-full border border-white/15 bg-black/45 px-4 py-2 text-white shadow-[0_12px_32px_rgba(0,0,0,0.28)] backdrop-blur-md">
+                                            <div className="flex items-center gap-3">
+                                                <span className="relative flex h-2.5 w-2.5">
+                                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-300 opacity-75"></span>
+                                                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-200"></span>
+                                                </span>
+                                                <span className="text-[11px] font-medium uppercase tracking-[0.24em] text-white/80">Cargando</span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 )}
                                 <img 
                                     src={file.url} 
@@ -156,6 +203,26 @@ const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDele
                         </div>
 
                         <div className="border-t border-neutral-200 bg-white/98 px-4 py-3 backdrop-blur md:border-t md:px-5 md:py-4">
+                            <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl bg-neutral-100 px-3 py-2 text-xs font-medium text-neutral-600 md:hidden">
+                                <button
+                                    onClick={onPrevious}
+                                    disabled={!hasPrevious}
+                                    className="flex items-center gap-1 rounded-full px-2 py-1 text-neutral-800 transition hover:bg-white disabled:opacity-35"
+                                >
+                                    <ChevronLeftIcon className="h-4 w-4" />
+                                    <span>Anterior</span>
+                                </button>
+                                <span>{currentIndex + 1} de {totalItems}</span>
+                                <button
+                                    onClick={onNext}
+                                    disabled={!hasNext}
+                                    className="flex items-center gap-1 rounded-full px-2 py-1 text-neutral-800 transition hover:bg-white disabled:opacity-35"
+                                >
+                                    <span>Siguiente</span>
+                                    <ChevronRightIcon className="h-4 w-4" />
+                                </button>
+                            </div>
+
                             <div className="flex items-center gap-4 text-neutral-900">
                                 <button className="transition hover:text-rose-500" aria-label="Me gusta">
                                     <HeartIcon className="h-6 w-6" />

@@ -22,7 +22,6 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isUploading, setIsUploading] = useState<boolean>(false);
     const [uploadState, setUploadState] = useState<UploadBatchState | null>(null);
-    const [selectedMedia, setSelectedMedia] = useState<MediaFile | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const [nextPageToken, setNextPageToken] = useState<string | undefined>(undefined);
@@ -39,9 +38,14 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
 
     const [isHeaderVisible, setIsHeaderVisible] = useState(true);
     const lastScrollY = useRef(0);
+    const galleryScrollPositionRef = useRef<number | null>(null);
+    const shouldRestoreScrollRef = useRef(false);
 
     const [isSelectionModeActive, setIsSelectionModeActive] = useState<boolean>(false);
     const [selectedItems, setSelectedItems] = useState<string[]>([]);
+    const [selectedMediaIndex, setSelectedMediaIndex] = useState<number | null>(null);
+
+    const selectedMedia = selectedMediaIndex !== null ? mediaFiles[selectedMediaIndex] ?? null : null;
 
     useEffect(() => {
         const SCROLL_THRESHOLD = 10;
@@ -99,6 +103,23 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             setSelectedItems([]);
         }
     }, [isAdmin, isSelectionModeActive]);
+
+    useEffect(() => {
+        if (selectedMediaIndex !== null || !shouldRestoreScrollRef.current) {
+            return;
+        }
+
+        const scrollPosition = galleryScrollPositionRef.current;
+        shouldRestoreScrollRef.current = false;
+
+        if (scrollPosition === null) {
+            return;
+        }
+
+        requestAnimationFrame(() => {
+            window.scrollTo({ top: scrollPosition, behavior: 'auto' });
+        });
+    }, [selectedMediaIndex]);
 
     const loadMoreMedia = useCallback(() => {
         if (hasMore && !isLoadingMore && nextPageToken) {
@@ -170,7 +191,9 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                     : [...prev, file.name]
             );
         } else {
-            setSelectedMedia(file);
+            const mediaIndex = mediaFiles.findIndex(mediaFile => mediaFile.name === file.name);
+            galleryScrollPositionRef.current = window.scrollY;
+            setSelectedMediaIndex(mediaIndex >= 0 ? mediaIndex : null);
         }
     };
 
@@ -180,7 +203,28 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
     };
 
     const handleGoBack = () => {
-        setSelectedMedia(null);
+        shouldRestoreScrollRef.current = true;
+        setSelectedMediaIndex(null);
+    };
+
+    const handleShowPreviousMedia = () => {
+        setSelectedMediaIndex(prevIndex => {
+            if (prevIndex === null || prevIndex <= 0) {
+                return prevIndex;
+            }
+
+            return prevIndex - 1;
+        });
+    };
+
+    const handleShowNextMedia = () => {
+        setSelectedMediaIndex(prevIndex => {
+            if (prevIndex === null || prevIndex >= mediaFiles.length - 1) {
+                return prevIndex;
+            }
+
+            return prevIndex + 1;
+        });
     };
 
     const handleOpenMasterKeyModal = () => {
@@ -216,7 +260,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             setMediaFiles(prev => prev.filter(file => file.name !== fileToDelete));
             setTotalMediaCount(prev => Math.max(0, prev - 1));
             if (selectedMedia?.name === fileToDelete) {
-                setSelectedMedia(null);
+                setSelectedMediaIndex(null);
             }
             alert('Archivo eliminado correctamente de todas las ubicaciones.');
         } catch (error) {
@@ -252,7 +296,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             setMediaFiles(prev => prev.filter(file => !selectedItems.includes(file.name)));
             setTotalMediaCount(prev => Math.max(0, prev - selectedItems.length));
             if (selectedMedia && selectedItems.includes(selectedMedia.name)) {
-                setSelectedMedia(null);
+                setSelectedMediaIndex(null);
             }
             setIsSelectionModeActive(false);
             setSelectedItems([]);
@@ -274,6 +318,12 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                     onBack={handleGoBack}
                     isAdmin={isAdmin}
                     onDelete={handleRequestDelete}
+                    onPrevious={handleShowPreviousMedia}
+                    onNext={handleShowNextMedia}
+                    hasPrevious={selectedMediaIndex > 0}
+                    hasNext={selectedMediaIndex < mediaFiles.length - 1}
+                    currentIndex={selectedMediaIndex}
+                    totalItems={mediaFiles.length}
                 />
             ) : (
                 <div className="pb-24 md:pb-16">

@@ -84,6 +84,18 @@ export const BackIcon: React.FC<{className?: string}> = ({className}) => (
     </svg>
 );
 
+export const ChevronLeftIcon: React.FC<{className?: string}> = ({className}) => (
+        <svg className={className || "h-6 w-6"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+);
+
+export const ChevronRightIcon: React.FC<{className?: string}> = ({className}) => (
+        <svg className={className || "h-6 w-6"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+);
+
 export const ChurchIcon: React.FC<{className?: string}> = ({className}) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={className || "h-6 w-6"} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 21V9.75L6 7.5v13.5M12 21h6V7.5L12 9.75M6 21H3v-9l9-4.5 9 4.5v9h-3" />
