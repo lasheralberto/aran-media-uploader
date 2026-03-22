@@ -39,7 +39,7 @@ const MediaItem: React.FC<MediaItemProps> = ({ file, onClick, isSelectionMode, i
 
     return (
         <div 
-            className={`group relative aspect-square bg-gray-300 cursor-pointer transition-transform duration-200 ease-in-out ${!isLoaded ? 'animate-pulse' : ''} ${isSelected ? 'scale-95' : ''}`}
+            className={`group relative aspect-square overflow-hidden bg-neutral-200 cursor-pointer transition duration-300 ease-out ${!isLoaded ? 'animate-pulse' : ''} ${isSelected ? 'scale-[0.98]' : 'hover:z-10 hover:scale-[1.01]'}`}
             onClick={handleClick}
             onMouseDown={handleInteractionStart}
             onMouseUp={handleInteractionEnd}
@@ -52,23 +52,33 @@ const MediaItem: React.FC<MediaItemProps> = ({ file, onClick, isSelectionMode, i
                 <img 
                     src={file.url} 
                     alt={file.name} 
-                    className={`w-full h-full object-cover transition-opacity duration-300 ease-in-out ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+                    className={`h-full w-full object-cover transition duration-300 ease-out ${isLoaded ? 'opacity-100' : 'opacity-0'} ${isSelectionMode ? '' : 'group-hover:brightness-[0.92]'}`}
                     loading="lazy"
                     onLoad={() => setIsLoaded(true)}
                 />
             ) : (
                 <video 
                     src={`${file.url}#t=0.1`} 
-                    className={`w-full h-full object-cover transition-opacity duration-300 ease-in-out ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+                    className={`h-full w-full object-cover transition duration-300 ease-out ${isLoaded ? 'opacity-100' : 'opacity-0'} ${isSelectionMode ? '' : 'group-hover:brightness-[0.92]'}`}
                     preload="metadata"
                     onLoadedData={() => setIsLoaded(true)}
                 ></video>
             )}
+
+            {!isSelectionMode && (
+                <>
+                    <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent opacity-0 transition duration-300 group-hover:opacity-100" />
+                    {file.type === 'video' && (
+                        <div className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-black/65 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white">
+                            Reel
+                        </div>
+                    )}
+                </>
+            )}
             
-            {/* Selection Overlay */}
             {isSelectionMode && (
-                <div className={`absolute inset-0 transition-colors duration-200 ${isSelected ? 'bg-black/50' : 'group-hover:bg-black/20'}`}>
-                    <div className={`absolute top-2 right-2 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${isSelected ? 'bg-rose-500 border-rose-500' : 'bg-white/50 border-white'}`}>
+                <div className={`absolute inset-0 transition-colors duration-200 ${isSelected ? 'bg-black/35' : 'bg-black/10'}`}>
+                    <div className={`absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full border transition-all duration-200 ${isSelected ? 'border-sky-500 bg-sky-500 text-white shadow-lg shadow-sky-500/30' : 'border-white bg-black/20 text-transparent backdrop-blur-sm'}`}>
                         {isSelected && <CheckIcon className="w-4 h-4 text-white" />}
                     </div>
                 </div>

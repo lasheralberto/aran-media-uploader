@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { listMediaFiles, deleteFile, deleteFileFromAllLocations, copyFileToCategory, checkCategoryContent, handleFileUploadProcess } from '../services/firebase';
-import { MediaFile } from '../types';
+import { listMediaFiles, deleteFileFromAllLocations, copyFileToCategory, checkCategoryContent, handleFileUploadProcess } from '../services/firebase';
+import { MediaFile, UploadBatchState, UploadBatchSummary } from '../types';
 import Header from './Header';
 import MediaGrid from './MediaGrid';
 import UploadProgress from './UploadProgress';
@@ -10,7 +9,6 @@ import MediaDetail from './MediaDetail';
 import Spinner from './Spinner';
 import MasterKeyModal from './MasterKeyModal';
 import ConfirmModal from './ConfirmModal';
-import StoryViewer from './StoryViewer';
 
 
 interface GalleryProps {
@@ -20,7 +18,7 @@ interface GalleryProps {
 type Category = 'Church' | 'Celebration' | 'Party';
 const CATEGORIES: { id: Category; label: string }[] = [
     { id: 'Church', label: 'Iglesia' },
-    { id: 'Celebration', label: 'Celebración' },
+    { id: 'Celebration', label: 'Celebracion' },
     { id: 'Party', label: 'Fiesta' },
 ];
 
@@ -28,53 +26,42 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
     const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isUploading, setIsUploading] = useState<boolean>(false);
-    const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+    const [uploadState, setUploadState] = useState<UploadBatchState | null>(null);
     const [selectedMedia, setSelectedMedia] = useState<MediaFile | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Pagination state
     const [nextPageToken, setNextPageToken] = useState<string | undefined>(undefined);
     const [hasMore, setHasMore] = useState<boolean>(true);
     const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
-    
-    // Admin state
+
     const [isAdmin, setIsAdmin] = useState<boolean>(false);
     const [isMasterKeyModalOpen, setIsMasterKeyModalOpen] = useState<boolean>(false);
 
-    // Delete confirmation state
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState<boolean>(false);
     const [fileToDelete, setFileToDelete] = useState<string | null>(null);
     const [isMultipleDeleteModalOpen, setIsMultipleDeleteModalOpen] = useState<boolean>(false);
     const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
-    // Header visibility state
     const [isHeaderVisible, setIsHeaderVisible] = useState(true);
     const lastScrollY = useRef(0);
-    
-    // Selection mode state
+
     const [isSelectionModeActive, setIsSelectionModeActive] = useState<boolean>(false);
     const [selectedItems, setSelectedItems] = useState<string[]>([]);
     const [isCopying, setIsCopying] = useState<boolean>(false);
 
-    // Category and Story state
     const [categoriesWithContent, setCategoriesWithContent] = useState<Category[]>([]);
-    const [storyViewerState, setStoryViewerState] = useState<{ media: MediaFile[] } | null>(null);
-
 
     const refreshCategoryContentCheck = useCallback(async () => {
-        console.log('🔄 Refreshing category content check...');
         const checks = CATEGORIES.map(async (cat) => {
             const hasContent = await checkCategoryContent(userId, cat.id);
-            console.log(`📁 Category "${cat.label}" (${cat.id}): ${hasContent ? 'has content' : 'empty'}`);
             return hasContent ? cat.id : null;
         });
         const results = (await Promise.all(checks)).filter(Boolean) as Category[];
-        console.log('✅ Categories with content:', results);
         setCategoriesWithContent(results);
     }, [userId]);
 
     useEffect(() => {
-        const SCROLL_THRESHOLD = 10; 
+        const SCROLL_THRESHOLD = 10;
         const handleScroll = () => {
             const currentScrollY = window.scrollY;
             const scrollDelta = currentScrollY - lastScrollY.current;
@@ -103,7 +90,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
         }
 
         const { files, nextPageToken: newToken } = await listMediaFiles(userId, null, token);
-        
+
         setMediaFiles(prev => isInitialFetch ? files : [...prev, ...files]);
         setNextPageToken(newToken);
         if (!newToken) {
@@ -111,14 +98,12 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
         }
         setIsLoading(false);
         setIsLoadingMore(false);
-
     }, [userId]);
 
     useEffect(() => {
         fetchMedia();
         refreshCategoryContentCheck();
     }, [fetchMedia, refreshCategoryContentCheck]);
-
 
     const loadMoreMedia = () => {
         if (hasMore && !isLoadingMore && nextPageToken) {
@@ -136,7 +121,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             }
         });
         if (node) observer.current.observe(node);
-    }, [isLoadingMore, hasMore, loadMoreMedia]);
+    }, [isLoadingMore, hasMore]);
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
@@ -144,23 +129,30 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             files,
             userId,
             setIsUploading,
-            setUploadProgress,
-            async () => {
-                await fetchMedia(); // On success: always refresh main view
-                await refreshCategoryContentCheck(); // Refresh categories after upload
+            setUploadState,
+            async (summary: UploadBatchSummary) => {
+                await fetchMedia();
+                await refreshCategoryContentCheck();
+
+                if (summary.failedFiles > 0) {
+                    alert(`Subida completada con incidencias: ${summary.successfulFiles} ok, ${summary.failedFiles} fallidos.`);
+                    return;
+                }
+
+                alert(`${summary.successfulFiles} archivo(s) subido(s) correctamente.`);
             },
             (error) => {
-                alert('¡Ups! Algo ha fallado en la subida. ¿Quizás la foto es demasiado buena? Revisa la consola.');
+                alert('Algo ha fallado en la subida. Revisa la consola.');
                 console.error(error);
             },
             () => {
                 if (fileInputRef.current) {
-                    fileInputRef.current.value = "";
+                    fileInputRef.current.value = '';
                 }
             }
         );
     };
-    
+
     const handleUploadClick = () => {
         fileInputRef.current?.click();
     };
@@ -184,21 +176,18 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
 
     const handleAddToCategory = async (category: Category) => {
         if (!isSelectionModeActive || selectedItems.length === 0 || isCopying) return;
-        
+
         setIsCopying(true);
         try {
             const copyPromises = selectedItems.map(fileName =>
                 copyFileToCategory(fileName, userId, category)
             );
             await Promise.all(copyPromises);
-            
-            // Refresh category content check immediately after copying
             await refreshCategoryContentCheck();
-            
-            alert(`${selectedItems.length} archivo(s) añadido(s) a '${CATEGORIES.find(c => c.id === category)?.label}' con éxito.`);
+            alert(`${selectedItems.length} archivo(s) anadido(s) a '${CATEGORIES.find(c => c.id === category)?.label}' con exito.`);
         } catch (error) {
-            console.error("Error copying files:", error);
-            alert('Hubo un error al añadir los archivos a la categoría.');
+            console.error('Error copying files:', error);
+            alert('Hubo un error al anadir los archivos a la categoria.');
         } finally {
             setIsCopying(false);
             setIsSelectionModeActive(false);
@@ -207,18 +196,16 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
     };
 
     const handleStoryBubbleClick = async (categoryId: string) => {
-        // Use a temporary loading state if needed, e.g., on the bubble itself
         try {
-            // Fetch all media for the story (up to 1000 items)
             const { files } = await listMediaFiles(userId, categoryId, undefined, 1000);
             if (files.length > 0) {
-                setStoryViewerState({ media: files });
+                alert(`La historia de ${categoryId} no esta disponible en esta vista.`);
             } else {
-                alert("Esta categoría aún no tiene recuerdos.");
+                alert('Esta categoria aun no tiene recuerdos.');
             }
         } catch (error) {
-            console.error("Failed to load story media:", error);
-            alert("No se pudieron cargar las historias.");
+            console.error('Failed to load story media:', error);
+            alert('No se pudieron cargar las historias.');
         }
     };
 
@@ -226,7 +213,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
         setIsSelectionModeActive(false);
         setSelectedItems([]);
     };
-    
+
     const handleGoBack = () => {
         setSelectedMedia(null);
     };
@@ -253,20 +240,15 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
     const handleConfirmDelete = async () => {
         if (!fileToDelete) return;
         try {
-            console.log(`🔍 Starting deletion process for: ${fileToDelete} (user: ${userId})`);
             await deleteFileFromAllLocations(fileToDelete, userId);
-            
             setMediaFiles(prev => prev.filter(file => file.name !== fileToDelete));
             if (selectedMedia?.name === fileToDelete) {
                 setSelectedMedia(null);
             }
-            
-            // Refresh category content check after deletion
             await refreshCategoryContentCheck();
-            
             alert('Archivo eliminado correctamente de todas las ubicaciones.');
         } catch (error) {
-            console.error("Error deleting file:", error);
+            console.error('Error deleting file:', error);
             alert(`No se pudo eliminar el archivo: ${error instanceof Error ? error.message : 'Error desconocido'}`);
         } finally {
             setIsConfirmModalOpen(false);
@@ -281,36 +263,23 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
 
     const handleConfirmMultipleDelete = async () => {
         if (selectedItems.length === 0) return;
-        
+
         setIsDeleting(true);
         try {
-            console.log(`🔍 Starting multiple deletion for ${selectedItems.length} files (user: ${userId})`);
-            console.log(`Files to delete:`, selectedItems);
-            
-            // Delete all selected files from all locations
-            const deletePromises = selectedItems.map(fileName => 
+            const deletePromises = selectedItems.map(fileName =>
                 deleteFileFromAllLocations(fileName, userId)
             );
             await Promise.all(deletePromises);
-            
-            // Update state
             setMediaFiles(prev => prev.filter(file => !selectedItems.includes(file.name)));
-            
-            // If the currently selected media is being deleted, close the detail view
             if (selectedMedia && selectedItems.includes(selectedMedia.name)) {
                 setSelectedMedia(null);
             }
-            
-            // Exit selection mode
             setIsSelectionModeActive(false);
             setSelectedItems([]);
-            
-            // Refresh category content check after multiple deletion
             await refreshCategoryContentCheck();
-            
             alert(`${selectedItems.length} archivo(s) eliminado(s) correctamente de todas las ubicaciones.`);
         } catch (error) {
-            console.error("Error deleting files:", error);
+            console.error('Error deleting files:', error);
             alert(`No se pudieron eliminar algunos archivos: ${error instanceof Error ? error.message : 'Error desconocido'}`);
         } finally {
             setIsDeleting(false);
@@ -318,70 +287,67 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
         }
     };
 
-    // FIX: Simplified calculation to avoid TypeScript arithmetic errors.
-    const progressValues = Object.values(uploadProgress) as number[];
-    const totalProgress = progressValues.length > 0
-        ? progressValues.reduce((acc, curr) => acc + curr, 0) / progressValues.length
-        : 0;
-
     return (
-        <div className="min-h-screen font-sans bg-gray-50">
-            {storyViewerState && (
-                <StoryViewer
-                    media={storyViewerState.media}
-                    onClose={() => setStoryViewerState(null)}
-                />
-            )}
-
+        <div className="min-h-screen bg-white text-neutral-950">
             {selectedMedia ? (
-                <MediaDetail 
+                <MediaDetail
                     file={selectedMedia}
                     onBack={handleGoBack}
                     isAdmin={isAdmin}
                     onDelete={handleRequestDelete}
                 />
             ) : (
-                <div className="pb-24">
-                    <Header 
-                        postCount={mediaFiles.length} 
-                        onOpenOptions={handleOpenMasterKeyModal} 
+                <div className="pb-24 md:pb-16">
+                    <Header
+                        postCount={mediaFiles.length}
+                        onOpenOptions={handleOpenMasterKeyModal}
                         isVisible={isHeaderVisible}
                         userId={userId}
                         isSelectionModeActive={isSelectionModeActive}
                         selectedItemsCount={selectedItems.length}
                         onCancelSelection={handleCancelSelection}
-                        categoriesWithContent={CATEGORIES.filter(c => categoriesWithContent.includes(c.id))}
-                        onCategoryBubbleClick={handleStoryBubbleClick}
                     />
-                    
-                    <main className="max-w-[935px] mx-auto px-0 md:px-4 md:pt-8">
-                         {isUploading && <UploadProgress progress={totalProgress} />}
+
+                    <main className="mx-auto max-w-[935px] px-0 md:px-4 md:pt-6">
+                        {isUploading && uploadState && <UploadProgress state={uploadState} />}
 
                         {isSelectionModeActive && (
-                             <div className="p-4 md:p-0 md:mb-4">
-                                <div className="grid grid-cols-3 gap-4 mb-4">
+                            <div className="sticky top-[72px] z-20 border-y border-neutral-200 bg-white/95 px-4 py-3 backdrop-blur md:top-[88px] md:mb-4 md:rounded-2xl md:border md:px-5">
+                                <div className="mb-3 flex items-center justify-between gap-3">
+                                    <div>
+                                        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-neutral-400">Seleccion</p>
+                                        <p className="text-sm font-semibold text-neutral-900">Guardar {selectedItems.length} recuerdo{selectedItems.length > 1 ? 's' : ''} en highlights</p>
+                                    </div>
+                                    <div className="text-xs text-neutral-500">Manten pulsado para seguir seleccionando</div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2.5 md:gap-3">
                                     {CATEGORIES.map(category => (
-                                        <button 
+                                        <button
                                             key={category.id}
                                             onClick={() => handleAddToCategory(category.id)}
                                             disabled={isCopying}
-                                            className="flex flex-col items-center justify-center gap-2 p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md hover:border-rose-300 transition-all text-center disabled:opacity-50 disabled:cursor-wait"
+                                            className="flex min-h-0 items-center gap-3 rounded-2xl border border-neutral-200 bg-white px-3 py-3 text-left transition hover:border-neutral-300 hover:bg-neutral-50 disabled:cursor-wait disabled:opacity-50"
                                         >
-                                            <div className="p-3 bg-rose-100 rounded-full">
-                                                {category.id === 'Church' ? <ChurchIcon className="h-6 w-6 text-rose-500" /> : category.id === 'Celebration' ? <CelebrationIcon className="h-6 w-6 text-rose-500"/> : <PartyIcon className="h-6 w-6 text-rose-500"/>}
+                                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 via-rose-500 to-amber-400 p-[1px]">
+                                                <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-neutral-900">
+                                                    {category.id === 'Church' ? <ChurchIcon className="h-5 w-5" /> : category.id === 'Celebration' ? <CelebrationIcon className="h-5 w-5" /> : <PartyIcon className="h-5 w-5" />}
+                                                </div>
                                             </div>
-                                            <span className="font-semibold text-gray-700 text-sm">{category.label}</span>
+                                            <div className="min-w-0">
+                                                <span className="block truncate text-sm font-semibold text-neutral-900">{category.label}</span>
+                                                <span className="block text-xs text-neutral-500">Anadir a historia destacada</span>
+                                            </div>
                                         </button>
                                     ))}
                                 </div>
-                                
-                                {/* Botón de eliminación múltiple solo para administradores */}
+
                                 {isAdmin && selectedItems.length > 0 && (
-                                    <div className="flex justify-center">
-                                        <button 
+                                    <div className="mt-3 flex justify-center md:justify-end">
+                                        <button
                                             onClick={handleRequestMultipleDelete}
                                             disabled={isDeleting}
-                                            className="flex items-center justify-center gap-2 px-6 py-3 bg-red-500 text-white rounded-lg shadow-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all disabled:opacity-50 disabled:cursor-wait"
+                                            className="flex items-center justify-center gap-2 rounded-full border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-50"
                                         >
                                             {isDeleting ? (
                                                 <Spinner />
@@ -389,10 +355,9 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                                                 <TrashIcon className="h-5 w-5" />
                                             )}
                                             <span className="font-semibold">
-                                                {isDeleting 
-                                                    ? 'Eliminando...' 
-                                                    : `Eliminar ${selectedItems.length} archivo${selectedItems.length > 1 ? 's' : ''}`
-                                                }
+                                                {isDeleting
+                                                    ? 'Eliminando...'
+                                                    : `Eliminar ${selectedItems.length} archivo${selectedItems.length > 1 ? 's' : ''}`}
                                             </span>
                                         </button>
                                     </div>
@@ -400,8 +365,8 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                             </div>
                         )}
 
-                        <MediaGrid 
-                            mediaFiles={mediaFiles} 
+                        <MediaGrid
+                            mediaFiles={mediaFiles}
                             isLoading={isLoading}
                             onItemClick={handleMediaItemClick}
                             lastElementRef={lastElementRef}
@@ -410,8 +375,9 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                             selectedItems={selectedItems}
                             onLongPress={handleLongPress}
                         />
+
                         {isLoadingMore && (
-                            <div className="flex justify-center items-center py-8">
+                            <div className="flex items-center justify-center py-8">
                                 <Spinner />
                             </div>
                         )}
@@ -419,38 +385,39 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                 </div>
             )}
 
-            {!selectedMedia && !isSelectionModeActive && !storyViewerState &&(
-                 <div className="fixed bottom-6 right-6 md:right-8 z-20">
-                     <button
+            {!selectedMedia && !isSelectionModeActive && (
+                <div className="fixed bottom-5 right-5 z-20 md:bottom-8 md:right-8">
+                    <button
                         onClick={handleUploadClick}
-                        className="bg-rose-500 text-white rounded-full p-4 md:p-5 shadow-lg hover:bg-rose-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500 transition-transform transform hover:scale-110"
-                        aria-label="Subir archivos"
+                        disabled={isUploading}
+                        className="flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-950 text-white shadow-[0_12px_30px_rgba(17,17,17,0.18)] transition hover:scale-[1.03] hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 md:h-16 md:w-16 md:rounded-full"
+                        aria-label={isUploading ? 'Subida en progreso' : 'Subir archivos'}
                     >
-                        <AddIcon className="h-8 w-8 md:h-10 md:w-10" />
+                        <AddIcon className="h-8 w-8 md:h-9 md:w-9" />
                     </button>
                 </div>
             )}
 
-            <MasterKeyModal 
+            <MasterKeyModal
                 isOpen={isMasterKeyModalOpen}
                 onClose={() => setIsMasterKeyModalOpen(false)}
                 onSubmit={handleMasterKeySubmit}
             />
-            
+
             <ConfirmModal
                 isOpen={isConfirmModalOpen}
                 onClose={() => setIsConfirmModalOpen(false)}
                 onConfirm={handleConfirmDelete}
-                title="Confirmar eliminación"
-                message={`¿Estás seguro de que quieres eliminar este archivo? Esta acción no se puede deshacer.`}
+                title="Confirmar eliminacion"
+                message="Estas seguro de que quieres eliminar este archivo? Esta accion no se puede deshacer."
             />
 
             <ConfirmModal
                 isOpen={isMultipleDeleteModalOpen}
                 onClose={() => setIsMultipleDeleteModalOpen(false)}
                 onConfirm={handleConfirmMultipleDelete}
-                title="Confirmar eliminación múltiple"
-                message={`¿Estás seguro de que quieres eliminar ${selectedItems.length} archivo${selectedItems.length > 1 ? 's' : ''}? Esta acción no se puede deshacer.`}
+                title="Confirmar eliminacion multiple"
+                message={`Estas seguro de que quieres eliminar ${selectedItems.length} archivo${selectedItems.length > 1 ? 's' : ''}? Esta accion no se puede deshacer.`}
             />
 
             <input
@@ -458,6 +425,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                 ref={fileInputRef}
                 onChange={handleFileChange}
                 multiple
+                disabled={isUploading}
                 accept="image/*,video/*"
                 className="hidden"
             />

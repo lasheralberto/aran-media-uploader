@@ -18,7 +18,7 @@ interface MediaGridProps {
 const MediaGrid: React.FC<MediaGridProps> = ({ mediaFiles, isLoading, onItemClick, lastElementRef, hasMore, selectionMode, selectedItems, onLongPress }) => {
     if (isLoading) {
         return (
-            <div className="grid grid-cols-3 md:gap-1 gap-0.5">
+            <div className="grid grid-cols-3 gap-[2px] border-y border-neutral-200 bg-neutral-200 md:gap-1 md:rounded-[4px] md:border md:bg-transparent">
                 {Array.from({ length: 9 }).map((_, index) => (
                     <SkeletonItem key={index} />
                 ))}
@@ -28,15 +28,16 @@ const MediaGrid: React.FC<MediaGridProps> = ({ mediaFiles, isLoading, onItemClic
 
     if (mediaFiles.length === 0) {
         return (
-            <div className="text-center py-16 px-4">
-                <h2 className="text-xl font-semibold text-gray-700">Aún no hay recuerdos</h2>
-                <p className="text-gray-500 mt-2">¡Sé el primero en compartir un momento especial!</p>
+            <div className="px-4 py-20 text-center md:rounded-[28px] md:border md:border-neutral-200 md:bg-neutral-50">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-neutral-400">Feed vacío</p>
+                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-900">Aún no hay recuerdos publicados</h2>
+                <p className="mx-auto mt-2 max-w-md text-sm text-neutral-500">Sé el primero en subir una foto o un vídeo para que este perfil empiece a parecer un álbum vivo.</p>
             </div>
         );
     }
 
     return (
-        <div className="grid grid-cols-3 md:gap-1 gap-0.5">
+        <div className="grid grid-cols-3 gap-[2px] border-y border-neutral-200 bg-neutral-200 md:gap-1 md:rounded-[4px] md:border md:bg-transparent">
             {mediaFiles.map((file, index) => {
                 const isLastElement = mediaFiles.length === index + 1;
                 const item = (

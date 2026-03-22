@@ -1,5 +1,4 @@
-// FIX: Changed Firebase import to use a namespace (`import * as firebaseApp`) to potentially resolve module resolution issues with named exports.
-import React from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import { initializeApp } from "firebase/app";
 import {
   getStorage,
@@ -18,7 +17,13 @@ import {
 
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 
-import { MediaFile } from '../types';
+import {
+  MediaFile,
+  UploadBatchState,
+  UploadBatchSummary,
+  UploadItemState,
+  UploadItemStatus,
+} from '../types';
 
 // TODO: Add your Firebase project's configuration here.
 // You can get this from your project's settings in the Firebase console.
@@ -40,6 +45,152 @@ const storage = getStorage(app);
 const ai = new GoogleGenAI({
   apiKey: "AIzaSyBHoBJ_a8NHjdBulMJXnXnFpKbaoLO6qH4"
 });
+
+const MAX_PARALLEL_UPLOADS = 3;
+const MAX_UPLOAD_RETRIES = 4;
+const BASE_RETRY_DELAY_MS = 1500;
+const RETRYABLE_STORAGE_ERROR_CODES = new Set([
+  'storage/canceled',
+  'storage/invalid-checksum',
+  'storage/retry-limit-exceeded',
+  'storage/server-file-wrong-size',
+  'storage/unknown',
+]);
+
+interface UploadQueueEntry {
+  id: string;
+  file: File;
+  fileName: string;
+  size: number;
+}
+
+interface UploadProgressUpdate {
+  status?: UploadItemStatus;
+  progress?: number;
+  transferredBytes?: number;
+  totalBytes?: number;
+  attempts?: number;
+  error?: string;
+}
+
+const sanitizeFileName = (name: string) => name.replace(/[\/\\#?]/g, '_');
+
+const buildStoredFileName = (name: string) => `${Number.MAX_SAFE_INTEGER - Date.now()}-${sanitizeFileName(name)}`;
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const getPreferredUploadConcurrency = (): number => {
+  if (typeof navigator === 'undefined') {
+    return MAX_PARALLEL_UPLOADS;
+  }
+
+  const connection = (navigator as Navigator & {
+    connection?: { effectiveType?: string; downlink?: number };
+  }).connection;
+
+  if (!connection) {
+    return MAX_PARALLEL_UPLOADS;
+  }
+
+  if (connection.effectiveType === 'slow-2g' || connection.effectiveType === '2g') {
+    return 1;
+  }
+
+  if (connection.effectiveType === '3g' || (connection.downlink ?? 0) < 5) {
+    return 2;
+  }
+
+  return MAX_PARALLEL_UPLOADS;
+};
+
+const isRetryableUploadError = (error: unknown): boolean => {
+  if (!(error instanceof Error) && typeof error !== 'object') {
+    return false;
+  }
+
+  const storageError = error as { code?: string };
+  return !!storageError.code && RETRYABLE_STORAGE_ERROR_CODES.has(storageError.code);
+};
+
+const createInitialUploadItemState = (entry: UploadQueueEntry): UploadItemState => ({
+  id: entry.id,
+  fileName: entry.fileName,
+  size: entry.size,
+  transferredBytes: 0,
+  progress: 0,
+  status: 'queued',
+  attempts: 0,
+});
+
+const recalculateBatchState = (state: UploadBatchState): UploadBatchState => {
+  const items = Object.values(state.items);
+  const transferredBytes = items.reduce((total, item) => total + item.transferredBytes, 0);
+  const totalBytes = state.totalBytes || items.reduce((total, item) => total + item.size, 0);
+  const progress = totalBytes > 0 ? Math.min(100, (transferredBytes / totalBytes) * 100) : 0;
+
+  return {
+    ...state,
+    totalBytes,
+    transferredBytes,
+    progress,
+    queuedFiles: items.filter(item => item.status === 'queued').length,
+    activeFiles: items.filter(item => item.status === 'uploading').length,
+    processingFiles: items.filter(item => item.status === 'processing').length,
+    completedFiles: items.filter(item => item.status === 'completed').length,
+    failedFiles: items.filter(item => item.status === 'failed').length,
+  };
+};
+
+const createInitialBatchState = (entries: UploadQueueEntry[], maxConcurrency: number): UploadBatchState => {
+  const items = entries.reduce<Record<string, UploadItemState>>((accumulator, entry) => {
+    accumulator[entry.id] = createInitialUploadItemState(entry);
+    return accumulator;
+  }, {});
+
+  return recalculateBatchState({
+    totalFiles: entries.length,
+    totalBytes: entries.reduce((total, entry) => total + entry.size, 0),
+    transferredBytes: 0,
+    progress: 0,
+    queuedFiles: entries.length,
+    activeFiles: 0,
+    processingFiles: 0,
+    completedFiles: 0,
+    failedFiles: 0,
+    maxConcurrency,
+    items,
+  });
+};
+
+const updateUploadItem = (
+  setUploadState: Dispatch<SetStateAction<UploadBatchState | null>>,
+  itemId: string,
+  updater: (current: UploadItemState) => UploadItemState,
+) => {
+  setUploadState(previousState => {
+    if (!previousState) {
+      return previousState;
+    }
+
+    const currentItem = previousState.items[itemId];
+    if (!currentItem) {
+      return previousState;
+    }
+
+    const nextItem = updater(currentItem);
+    if (nextItem === currentItem) {
+      return previousState;
+    }
+
+    return recalculateBatchState({
+      ...previousState,
+      items: {
+        ...previousState.items,
+        [itemId]: nextItem,
+      },
+    });
+  });
+};
 
 // Helper to convert Firebase Storage reference to base64
 const storageRefToBase64 = async (storageRef: StorageReference): Promise<string> => {
@@ -147,104 +298,191 @@ const getFileType = (fileName: string): 'image' | 'video' => {
 
 export const uploadFile = async (
   file: File,
-  onProgress: (progress: number) => void,
   userId: string,
-  maxRetries = 2
+  onProgress: (update: UploadProgressUpdate) => void,
+  maxRetries = MAX_UPLOAD_RETRIES
 ): Promise<string> => {
-
-  // Función para sanear el nombre de archivo
-  const sanitizeFileName = (name: string) =>
-    name.replace(/[\/\\#?]/g, '_');
-
-  const fileName = `${Number.MAX_SAFE_INTEGER - Date.now()}-${sanitizeFileName(file.name)}`;
+  const fileName = buildStoredFileName(file.name);
   const basePath = `feedPosts/${userId}`;
   const fileRef = ref(storage, `${basePath}/${fileName}`);
 
-  // Set cache control headers for the uploaded file for better performance.
   const metadata: UploadMetadata = {
     cacheControl: 'public, max-age=31536000, immutable',
+    contentType: file.type || undefined,
   };
 
   let attempt = 0;
 
-  const tryUpload = (): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const uploadTask = uploadBytesResumable(fileRef, file, metadata);
-
-      uploadTask.on(
-        "state_changed",
-        (snapshot: UploadTaskSnapshot) => {
-          const progress = snapshot.totalBytes > 0
-            ? (snapshot.bytesTransferred / snapshot.totalBytes) * 100
-            : 0;
-          onProgress(progress);
-        },
-        (error) => {
-          console.error(`Upload failed (attempt ${attempt + 1}):`, error);
-          attempt++;
-          if (attempt <= maxRetries) {
-            console.log(`Reintentando subida... (${attempt}/${maxRetries})`);
-            resolve(tryUpload()); // reintento
-          } else {
-            reject(error);
-          }
-        },
-        async () => {
-          try {
-            const url = await getDownloadURL(uploadTask.snapshot.ref);
-            
-            // Only classify images, not videos
-            if (file.type.startsWith('image/')) {
-                const imageCategory = await classifyImage(fileName, userId, file.type);
-                if (imageCategory) {
- 
-                    // We don't need to wait for this to finish to show the image in the main feed.
-                    // Fire-and-forget, but log errors.
-                    copyFileToCategory(fileName, userId, imageCategory).catch(err => {
-                        console.error(`Failed to copy file ${fileName} to category ${imageCategory}:`, err);
-                    });
-                } 
-            }
-            resolve(url);
-          } catch (err) {
-            reject(err);
-          }
-        }
-      );
+  while (attempt < maxRetries) {
+    attempt += 1;
+    onProgress({
+      status: 'uploading',
+      attempts: attempt,
+      error: undefined,
+      totalBytes: file.size,
     });
-  };
 
-  return tryUpload();
+    try {
+      const url = await new Promise<string>((resolve, reject) => {
+        const uploadTask = uploadBytesResumable(fileRef, file, metadata);
+
+        uploadTask.on(
+          'state_changed',
+          (snapshot: UploadTaskSnapshot) => {
+            const totalBytes = snapshot.totalBytes || file.size;
+            const transferredBytes = snapshot.bytesTransferred;
+            const progress = totalBytes > 0 ? (transferredBytes / totalBytes) * 100 : 0;
+
+            onProgress({
+              status: 'uploading',
+              attempts: attempt,
+              progress,
+              transferredBytes,
+              totalBytes,
+            });
+          },
+          reject,
+          async () => {
+            try {
+              const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+              resolve(downloadUrl);
+            } catch (error) {
+              reject(error);
+            }
+          },
+        );
+      });
+
+      onProgress({
+        status: 'processing',
+        attempts: attempt,
+        progress: 100,
+        transferredBytes: file.size,
+        totalBytes: file.size,
+      });
+
+      if (file.type.startsWith('image/')) {
+        classifyImage(fileName, userId, file.type)
+          .then(imageCategory => {
+            if (!imageCategory) {
+              return;
+            }
+
+            return copyFileToCategory(fileName, userId, imageCategory).catch(error => {
+              console.error(`Failed to copy file ${fileName} to category ${imageCategory}:`, error);
+            });
+          })
+          .catch(error => {
+            console.error(`Failed to classify file ${fileName}:`, error);
+          });
+      }
+
+      onProgress({
+        status: 'completed',
+        attempts: attempt,
+        progress: 100,
+        transferredBytes: file.size,
+        totalBytes: file.size,
+      });
+
+      return url;
+    } catch (error) {
+      console.error(`Upload failed for ${file.name} (attempt ${attempt}/${maxRetries}):`, error);
+
+      if (attempt >= maxRetries || !isRetryableUploadError(error)) {
+        onProgress({
+          status: 'failed',
+          attempts: attempt,
+          error: error instanceof Error ? error.message : 'Error desconocido durante la subida.',
+        });
+        throw error;
+      }
+
+      const backoffDelay = BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+      onProgress({
+        status: 'queued',
+        attempts: attempt,
+        error: `Reintentando en ${Math.round(backoffDelay / 1000)}s`,
+      });
+      await sleep(backoffDelay);
+    }
+  }
+
+  throw new Error(`Upload exhausted retries for ${file.name}`);
 };
 
 export const handleFileUploadProcess = async (
   files: FileList | null,
   userId: string,
   setIsUploading: (isUploading: boolean) => void,
-  setUploadProgress: React.Dispatch<React.SetStateAction<Record<string, number>>>,
-  onSuccess: () => Promise<void>,
+  setUploadState: Dispatch<SetStateAction<UploadBatchState | null>>,
+  onSuccess: (summary: UploadBatchSummary) => Promise<void>,
   onError: (error: any) => void,
   onFinally: () => void
 ) => {
   if (!files || files.length === 0) return;
 
-  setIsUploading(true);
-  setUploadProgress({});
+  const entries = Array.from(files).map((file, index) => ({
+    id: `${file.name}-${file.lastModified}-${index}`,
+    file,
+    fileName: file.name,
+    size: file.size,
+  }));
+  const maxConcurrency = Math.min(getPreferredUploadConcurrency(), entries.length);
 
-  const uploadTasks = Array.from(files).map(file => {
-    return uploadFile(file, progress => {
-      setUploadProgress(prev => ({ ...prev, [file.name]: progress }));
-    }, userId);
-  });
+  setIsUploading(true);
+  setUploadState(createInitialBatchState(entries, maxConcurrency));
 
   try {
-    await Promise.all(uploadTasks);
-    await onSuccess();
+    const successful: string[] = [];
+    const failed: UploadBatchSummary['failed'] = [];
+    let currentIndex = 0;
+
+    const workerCount = Math.max(1, maxConcurrency);
+    const workers = Array.from({ length: workerCount }, async () => {
+      while (currentIndex < entries.length) {
+        const entry = entries[currentIndex];
+        currentIndex += 1;
+
+        if (!entry) {
+          return;
+        }
+
+        try {
+          await uploadFile(entry.file, userId, update => {
+            updateUploadItem(setUploadState, entry.id, current => ({
+              ...current,
+              status: update.status ?? current.status,
+              progress: update.progress ?? current.progress,
+              transferredBytes: Math.min(update.transferredBytes ?? current.transferredBytes, update.totalBytes ?? current.size),
+              attempts: update.attempts ?? current.attempts,
+              error: update.error,
+            }));
+          });
+          successful.push(entry.fileName);
+        } catch (error) {
+          failed.push({
+            fileName: entry.fileName,
+            reason: error instanceof Error ? error.message : 'Error desconocido durante la subida.',
+          });
+        }
+      }
+    });
+
+    await Promise.all(workers);
+
+    await onSuccess({
+      totalFiles: entries.length,
+      totalBytes: entries.reduce((total, entry) => total + entry.size, 0),
+      successfulFiles: successful.length,
+      failedFiles: failed.length,
+      successful,
+      failed,
+    });
   } catch (error) {
     onError(error);
   } finally {
     setIsUploading(false);
-    setUploadProgress({});
     onFinally();
   }
 };

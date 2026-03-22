@@ -13,23 +13,24 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({ isOpen, onClose, onConfirm,
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[60]" onClick={onClose}>
-            <div className="relative bg-white rounded-lg max-w-sm w-full p-8 shadow-xl text-center" onClick={(e) => e.stopPropagation()}>
-                <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+            <div className="relative w-full max-w-sm rounded-[26px] bg-white p-7 text-center shadow-[0_24px_60px_rgba(0,0,0,0.18)]" onClick={(e) => e.stopPropagation()}>
+                <button onClick={onClose} className="absolute right-4 top-4 rounded-full p-1 text-neutral-400 transition hover:bg-neutral-100 hover:text-neutral-700">
                     <CloseIcon className="h-6 w-6"/>
                 </button>
-                <h2 className="text-xl font-semibold text-gray-800 mb-2">{title}</h2>
-                <p className="text-gray-500 mb-6">{message}</p>
-                <div className="flex justify-center gap-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-neutral-400">Confirmación</p>
+                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-900">{title}</h2>
+                <p className="mt-2 text-sm leading-6 text-neutral-500">{message}</p>
+                <div className="mt-7 flex justify-center gap-3">
                     <button
                         onClick={onClose}
-                        className="w-full bg-gray-200 text-gray-800 font-bold py-3 px-4 rounded-lg hover:bg-gray-300 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400"
+                        className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm font-semibold text-neutral-800 transition hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-400"
                     >
                         Cancelar
                     </button>
                     <button
                         onClick={onConfirm}
-                        className="w-full bg-red-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-red-600 transition-colors focus:outline-none focus:ring-2 focus:ring-red-300"
+                        className="w-full rounded-2xl bg-red-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-300"
                     >
                         Eliminar
                     </button>
