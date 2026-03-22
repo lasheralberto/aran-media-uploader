@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import JSZip from 'jszip';
 import { countMediaFiles, listMediaFiles, deleteFileFromAllLocations, handleFileUploadProcess } from '../services/firebase';
 import { MediaFile, UploadBatchState, UploadBatchSummary } from '../types';
 import Header from './Header';
@@ -10,6 +11,65 @@ import Spinner from './Spinner';
 import MasterKeyModal from './MasterKeyModal';
 import ConfirmModal from './ConfirmModal';
 import GalleryLoadStatus from './GalleryLoadStatus';
+
+const BACKGROUND_PRELOAD_CONCURRENCY = 2;
+const BACKGROUND_PRELOAD_DELAY_MS = 250;
+const ZIP_DOWNLOAD_CONCURRENCY = 4;
+
+const shouldSkipBackgroundPreload = (): boolean => {
+    if (typeof navigator === 'undefined') {
+        return false;
+    }
+
+    const connection = (navigator as Navigator & {
+        connection?: { saveData?: boolean; effectiveType?: string };
+    }).connection;
+
+    if (!connection) {
+        return false;
+    }
+
+    return connection.saveData === true || connection.effectiveType === 'slow-2g' || connection.effectiveType === '2g';
+};
+
+const preloadImageInBackground = (url: string): Promise<void> => (
+    new Promise((resolve) => {
+        const image = new Image();
+        image.decoding = 'async';
+        image.onload = () => resolve();
+        image.onerror = () => resolve();
+        image.src = url;
+    })
+);
+
+const fetchOriginalMediaBlob = async (file: MediaFile): Promise<Blob> => {
+    const response = await fetch(file.url);
+    if (!response.ok) {
+        throw new Error(`No se pudo descargar ${file.name}.`);
+    }
+
+    return response.blob();
+};
+
+const downloadBlobFile = (blob: Blob, fileName: string) => {
+    const objectUrl = URL.createObjectURL(blob);
+
+    try {
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } finally {
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    }
+};
+
+const buildBatchZipName = () => {
+    const timestamp = new Date().toISOString().replace(/[.:]/g, '-');
+    return `imagenes-full-${timestamp}.zip`;
+};
 
 
 interface GalleryProps {
@@ -47,6 +107,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
     const [isSelectionModeActive, setIsSelectionModeActive] = useState<boolean>(false);
     const [selectedItems, setSelectedItems] = useState<string[]>([]);
     const [selectedMediaIndex, setSelectedMediaIndex] = useState<number | null>(null);
+    const lastPreloadedMediaIndexRef = useRef(0);
 
     const selectedMedia = selectedMediaIndex !== null ? mediaFiles[selectedMediaIndex] ?? null : null;
 
@@ -80,6 +141,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
             setIsLoading(true);
             setMediaFiles([]);
             setHasMore(true);
+            lastPreloadedMediaIndexRef.current = 0;
         } else {
             setIsLoadingMore(true);
         }
@@ -99,6 +161,55 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
         fetchMedia();
         refreshTotalMediaCount();
     }, [fetchMedia, refreshTotalMediaCount]);
+
+    useEffect(() => {
+        if (mediaFiles.length === 0 || shouldSkipBackgroundPreload()) {
+            return;
+        }
+
+        const preloadStartIndex = lastPreloadedMediaIndexRef.current;
+        const preloadEndIndex = mediaFiles.length;
+
+        if (preloadStartIndex >= preloadEndIndex) {
+            return;
+        }
+
+        let isCancelled = false;
+
+        const runPreloadQueue = async () => {
+            let currentMediaIndex = preloadStartIndex;
+
+            const workers = Array.from({ length: Math.min(BACKGROUND_PRELOAD_CONCURRENCY, preloadEndIndex - preloadStartIndex) }, async () => {
+                while (!isCancelled && currentMediaIndex < preloadEndIndex) {
+                    const nextIndex = currentMediaIndex;
+                    currentMediaIndex += 1;
+
+                    const nextFile = mediaFiles[nextIndex];
+
+                    if (!nextFile) {
+                        return;
+                    }
+
+                    if (nextFile.type === 'image') {
+                        await preloadImageInBackground(nextFile.url);
+                    }
+
+                    lastPreloadedMediaIndexRef.current = Math.max(lastPreloadedMediaIndexRef.current, nextIndex + 1);
+                }
+            });
+
+            await Promise.all(workers);
+        };
+
+        const timeoutId = window.setTimeout(() => {
+            void runPreloadQueue();
+        }, BACKGROUND_PRELOAD_DELAY_MS);
+
+        return () => {
+            isCancelled = true;
+            window.clearTimeout(timeoutId);
+        };
+    }, [mediaFiles]);
 
     useEffect(() => {
         if (!isSelectionModeActive || selectedItems.length > 0) {
@@ -206,27 +317,6 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
         setSelectedItems([]);
     };
 
-    const downloadMediaFile = useCallback(async (file: MediaFile) => {
-        const response = await fetch(file.url);
-        if (!response.ok) {
-            throw new Error(`No se pudo descargar ${file.name}.`);
-        }
-
-        const blob = await response.blob();
-        const objectUrl = URL.createObjectURL(blob);
-
-        try {
-            const link = document.createElement('a');
-            link.href = objectUrl;
-            link.download = file.name;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } finally {
-            window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-        }
-    }, []);
-
     const handleDownloadSelected = useCallback(async () => {
         if (selectedItems.length === 0 || isDownloading) {
             return;
@@ -239,17 +329,48 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
 
         setIsDownloading(true);
         try {
-            for (const file of filesToDownload) {
-                await downloadMediaFile(file);
-                await new Promise(resolve => window.setTimeout(resolve, 150));
-            }
+            const zip = new JSZip();
+            const downloadedFiles = new Array<{ name: string; blob: Blob }>(filesToDownload.length);
+            let currentIndex = 0;
+
+            const workers = Array.from(
+                { length: Math.min(ZIP_DOWNLOAD_CONCURRENCY, filesToDownload.length) },
+                async () => {
+                    while (currentIndex < filesToDownload.length) {
+                        const fileIndex = currentIndex;
+                        currentIndex += 1;
+
+                        const file = filesToDownload[fileIndex];
+                        const blob = await fetchOriginalMediaBlob(file);
+                        downloadedFiles[fileIndex] = {
+                            name: file.name,
+                            blob,
+                        };
+                    }
+                }
+            );
+
+            await Promise.all(workers);
+
+            downloadedFiles.forEach(file => {
+                zip.file(file.name, file.blob);
+            });
+
+            const zipBlob = await zip.generateAsync({
+                type: 'blob',
+                compression: 'DEFLATE',
+                compressionOptions: { level: 6 },
+            });
+
+            downloadBlobFile(zipBlob, buildBatchZipName());
+            alert(`ZIP generado correctamente con ${filesToDownload.length} archivo${filesToDownload.length > 1 ? 's' : ''} en resolucion completa.`);
         } catch (error) {
             console.error('Error downloading files:', error);
             alert(`No se pudieron descargar algunos archivos: ${error instanceof Error ? error.message : 'Error desconocido'}`);
         } finally {
             setIsDownloading(false);
         }
-    }, [downloadMediaFile, isDownloading, mediaFiles, selectedItems]);
+    }, [isDownloading, mediaFiles, selectedItems]);
 
     const handleGoBack = () => {
         shouldRestoreScrollRef.current = true;
@@ -481,8 +602,8 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
                         )}
                         <span>
                             {isDownloading
-                                ? 'Descargando...'
-                                : `Descargar ${selectedItems.length} archivo${selectedItems.length > 1 ? 's' : ''}`}
+                                ? 'Generando ZIP...'
+                                : `Descargar ZIP (${selectedItems.length})`}
                         </span>
                     </button>
                 </div>

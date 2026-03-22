@@ -3,6 +3,7 @@ export interface MediaFile {
   name: string;
   url: string;
   previewUrl?: string;
+  detailUrl?: string;
   type: 'image' | 'video';
 }
 

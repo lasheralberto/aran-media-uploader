@@ -163,7 +163,7 @@ const Header: React.FC<HeaderProps> = ({
                 </div>
 
                 <div className="space-y-1.5 text-sm leading-5 text-neutral-700">
-                  <p className="font-semibold text-neutral-900">Boda de Alberto y Mariona</p>                  
+                                   
                   <p className="text-neutral-500">#AlbertoYMariona #TheBodorrioGallery</p>
                 </div>
               </div>
