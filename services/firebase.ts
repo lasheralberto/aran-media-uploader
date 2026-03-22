@@ -1,6 +1,14 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { initializeApp } from "firebase/app";
 import {
+  GoogleAuthProvider,
+  getAuth,
+  onAuthStateChanged,
+  signInWithPopup,
+  signOut,
+  type User,
+} from "firebase/auth";
+import {
   getStorage,
   ref,
   uploadBytes,
@@ -39,7 +47,13 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
 const storage = getStorage(app);
+const googleProvider = new GoogleAuthProvider();
+
+googleProvider.setCustomParameters({
+  prompt: 'select_account',
+});
 
 const MAX_PARALLEL_UPLOADS = 3;
 const MAX_UPLOAD_RETRIES = 4;
@@ -279,6 +293,19 @@ const getFileType = (fileName: string): 'image' | 'video' => {
     return 'video';
   }
   return 'image';
+};
+
+export const subscribeToAuthChanges = (callback: (user: User | null) => void) => (
+  onAuthStateChanged(auth, callback)
+);
+
+export const signInWithGoogle = async (): Promise<User> => {
+  const result = await signInWithPopup(auth, googleProvider);
+  return result.user;
+};
+
+export const signOutCurrentUser = async (): Promise<void> => {
+  await signOut(auth);
 };
 
 export const uploadFile = async (
@@ -536,7 +563,7 @@ export const listMediaFiles = async (
 
   } catch (error) {
     console.error("Error listing files:", error);
-    alert("Could not list files. Please check your Firebase Storage setup and ensure security rules allow public read access for the specified path.");
+    alert("No se pudieron cargar los archivos. Revisa la sesion actual y las reglas de Firebase Storage.");
     return { files: [], nextPageToken: undefined };
   }
 };

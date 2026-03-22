@@ -2,19 +2,24 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# Aran Media Uploader
 
-This contains everything you need to run your app locally.
+Galeria privada para compartir fotos y videos con Firebase Storage.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1S-XFUFtbEa9JKGW0raeemkMXH7UwXPMa
+## Requisitos
 
-## Run Locally
+- Node.js
+- Un proyecto de Firebase con Authentication y Storage activos
 
-**Prerequisites:**  Node.js
+## Configuracion de Firebase Authentication
 
+1. En Firebase Console, activa Authentication.
+2. Habilita el proveedor Google.
+3. Anade los dominios desde los que vayas a abrir la app en Authorized domains.
+4. Publica las reglas de Storage de este repositorio para exigir usuario autenticado.
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Desarrollo local
+
+1. Instala dependencias con `npm install`.
+2. Arranca la app con `npm run dev`.
+3. Inicia sesion con Google para entrar en la galeria.

@@ -14,9 +14,11 @@ import GalleryLoadStatus from './GalleryLoadStatus';
 
 interface GalleryProps {
     userId: string;
+    currentUserName: string;
+    onSignOut: () => Promise<void> | void;
 }
 
-const Gallery: React.FC<GalleryProps> = ({ userId }) => {
+const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut }) => {
     const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
     const [totalMediaCount, setTotalMediaCount] = useState<number>(0);
     const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -379,6 +381,8 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                         onOpenOptions={handleOpenMasterKeyModal}
                         isVisible={isHeaderVisible}
                         userId={userId}
+                        currentUserName={currentUserName}
+                        onSignOut={onSignOut}
                         isSelectionModeActive={isSelectionModeActive}
                         selectedItemsCount={selectedItems.length}
                         onCancelSelection={handleCancelSelection}
