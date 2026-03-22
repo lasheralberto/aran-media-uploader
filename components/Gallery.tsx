@@ -4,7 +4,7 @@ import { MediaFile, UploadBatchState, UploadBatchSummary } from '../types';
 import Header from './Header';
 import MediaGrid from './MediaGrid';
 import UploadProgress from './UploadProgress';
-import { AddIcon, TrashIcon } from './Icons';
+import { AddIcon, DownloadIcon, TrashIcon } from './Icons';
 import MediaDetail from './MediaDetail';
 import Spinner from './Spinner';
 import MasterKeyModal from './MasterKeyModal';
@@ -35,6 +35,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
     const [fileToDelete, setFileToDelete] = useState<string | null>(null);
     const [isMultipleDeleteModalOpen, setIsMultipleDeleteModalOpen] = useState<boolean>(false);
     const [isDeleting, setIsDeleting] = useState<boolean>(false);
+    const [isDownloading, setIsDownloading] = useState<boolean>(false);
 
     const [isHeaderVisible, setIsHeaderVisible] = useState(true);
     const lastScrollY = useRef(0);
@@ -98,11 +99,12 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
     }, [fetchMedia, refreshTotalMediaCount]);
 
     useEffect(() => {
-        if (!isAdmin && isSelectionModeActive) {
-            setIsSelectionModeActive(false);
-            setSelectedItems([]);
+        if (!isSelectionModeActive || selectedItems.length > 0) {
+            return;
         }
-    }, [isAdmin, isSelectionModeActive]);
+
+        setIsSelectionModeActive(false);
+    }, [isSelectionModeActive, selectedItems]);
 
     useEffect(() => {
         if (selectedMediaIndex !== null || !shouldRestoreScrollRef.current) {
@@ -172,24 +174,24 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
         fileInputRef.current?.click();
     };
 
+    const toggleSelectedItem = useCallback((fileName: string) => {
+        setSelectedItems(prev => {
+            const nextItems = prev.includes(fileName)
+                ? prev.filter(name => name !== fileName)
+                : [...prev, fileName];
+
+            setIsSelectionModeActive(nextItems.length > 0);
+            return nextItems;
+        });
+    }, []);
+
     const handleLongPress = (file: MediaFile) => {
-        if (!isAdmin) return;
-        setIsSelectionModeActive(true);
-        setSelectedItems([file.name]);
+        toggleSelectedItem(file.name);
     };
 
     const handleMediaItemClick = (file: MediaFile) => {
         if (isSelectionModeActive) {
-            if (!isAdmin) {
-                handleCancelSelection();
-                return;
-            }
-
-            setSelectedItems(prev =>
-                prev.includes(file.name)
-                    ? prev.filter(name => name !== file.name)
-                    : [...prev, file.name]
-            );
+            toggleSelectedItem(file.name);
         } else {
             const mediaIndex = mediaFiles.findIndex(mediaFile => mediaFile.name === file.name);
             galleryScrollPositionRef.current = window.scrollY;
@@ -201,6 +203,51 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
         setIsSelectionModeActive(false);
         setSelectedItems([]);
     };
+
+    const downloadMediaFile = useCallback(async (file: MediaFile) => {
+        const response = await fetch(file.url);
+        if (!response.ok) {
+            throw new Error(`No se pudo descargar ${file.name}.`);
+        }
+
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+
+        try {
+            const link = document.createElement('a');
+            link.href = objectUrl;
+            link.download = file.name;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } finally {
+            window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+        }
+    }, []);
+
+    const handleDownloadSelected = useCallback(async () => {
+        if (selectedItems.length === 0 || isDownloading) {
+            return;
+        }
+
+        const filesToDownload = mediaFiles.filter(file => selectedItems.includes(file.name));
+        if (filesToDownload.length === 0) {
+            return;
+        }
+
+        setIsDownloading(true);
+        try {
+            for (const file of filesToDownload) {
+                await downloadMediaFile(file);
+                await new Promise(resolve => window.setTimeout(resolve, 150));
+            }
+        } catch (error) {
+            console.error('Error downloading files:', error);
+            alert(`No se pudieron descargar algunos archivos: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+        } finally {
+            setIsDownloading(false);
+        }
+    }, [downloadMediaFile, isDownloading, mediaFiles, selectedItems]);
 
     const handleGoBack = () => {
         shouldRestoreScrollRef.current = true;
@@ -347,7 +394,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                                         <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-neutral-400">Seleccion</p>
                                         <p className="text-sm font-semibold text-neutral-900">{selectedItems.length} recuerdo{selectedItems.length > 1 ? 's' : ''} seleccionado{selectedItems.length > 1 ? 's' : ''}</p>
                                     </div>
-                                    <div className="text-xs text-neutral-500">Manten pulsado para seguir seleccionando</div>
+                                    <div className="text-xs text-neutral-500">Manten pulsado o toca para ajustar la seleccion</div>
                                 </div>
 
                                 {isAdmin && selectedItems.length > 0 && (
@@ -393,7 +440,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                 </div>
             )}
 
-            {!selectedMedia && !isSelectionModeActive && (
+            {!selectedMedia && !isSelectionModeActive && isAdmin && (
                 <>
                     <GalleryLoadStatus
                         loadedCount={mediaFiles.length}
@@ -413,6 +460,28 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                         </button>
                     </div>
                 </>
+            )}
+
+            {!selectedMedia && isSelectionModeActive && selectedItems.length > 0 && (
+                <div className="pointer-events-none fixed bottom-5 left-5 z-30 md:bottom-8 md:left-8">
+                    <button
+                        onClick={handleDownloadSelected}
+                        disabled={isDownloading}
+                        className="pointer-events-auto inline-flex min-h-14 items-center gap-3 rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(17,17,17,0.18)] transition hover:scale-[1.02] hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 md:min-h-16 md:rounded-full md:px-6"
+                        aria-label={isDownloading ? 'Descarga en progreso' : `Descargar ${selectedItems.length} archivo${selectedItems.length > 1 ? 's' : ''}`}
+                    >
+                        {isDownloading ? (
+                            <Spinner />
+                        ) : (
+                            <DownloadIcon className="h-5 w-5" />
+                        )}
+                        <span>
+                            {isDownloading
+                                ? 'Descargando...'
+                                : `Descargar ${selectedItems.length} archivo${selectedItems.length > 1 ? 's' : ''}`}
+                        </span>
+                    </button>
+                </div>
             )}
 
             <MasterKeyModal
