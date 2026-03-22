@@ -3,7 +3,7 @@ import type { User } from 'firebase/auth';
 import AuthScreen from './components/AuthScreen';
 import Gallery from './components/Gallery';
 import Spinner from './components/Spinner';
-import { signInToGallery, signOutCurrentUser, subscribeToAuthChanges } from './services/firebase';
+import { ADMIN_EMAIL, signInToGallery, signOutCurrentUser, subscribeToAuthChanges } from './services/firebase';
 
 const getAuthErrorMessage = (error: unknown): string => {
     const code = typeof error === 'object' && error !== null && 'code' in error
@@ -13,8 +13,8 @@ const getAuthErrorMessage = (error: unknown): string => {
     switch (code) {
         case 'auth/missing-email':
             return 'Introduce un email para identificarte en la galeria.';
-        case 'auth/invalid-gallery-password':
-            return 'La clave no es correcta.';
+        case 'auth/invalid-admin-password':
+            return 'La password de administrador no es correcta.';
         case 'auth/operation-not-allowed':
             return 'El proveedor Anonymous no esta habilitado en Firebase Authentication.';
         default:
@@ -81,10 +81,14 @@ const App: React.FC = () => {
         );
     }
 
+    const currentUserName = currentUser.displayName || currentUser.email || 'Invitado';
+    const isAdmin = currentUserName.trim().toLowerCase() === ADMIN_EMAIL;
+
     return (
         <Gallery
             userId="lasher"
-            currentUserName={currentUser.displayName || currentUser.email || 'Invitado'}
+            currentUserName={currentUserName}
+            isAdmin={isAdmin}
             onSignOut={handleSignOut}
         />
     );

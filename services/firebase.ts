@@ -49,7 +49,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const storage = getStorage(app);
-const GALLERY_PASSWORD = 'bodorrio';
+
+export const ADMIN_EMAIL = 'admin@albertoymariona.com';
+const ADMIN_PASSWORD = 'bodorrio';
 
 const MAX_PARALLEL_UPLOADS = 3;
 const MAX_UPLOAD_RETRIES = 4;
@@ -325,8 +327,8 @@ export const signInToGallery = async (email: string, password: string): Promise<
     throw { code: 'auth/missing-email' };
   }
 
-  if (password !== GALLERY_PASSWORD) {
-    throw { code: 'auth/invalid-gallery-password' };
+  if (normalizedEmail === ADMIN_EMAIL && password !== ADMIN_PASSWORD) {
+    throw { code: 'auth/invalid-admin-password' };
   }
 
   const result = await signInAnonymously(auth);

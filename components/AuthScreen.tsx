@@ -29,7 +29,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, isSigningIn, errorMes
                             Las fotos solo se ven con sesion iniciada.
                         </h1>
                         <p className="mt-6 max-w-lg text-base leading-7 text-neutral-700 md:text-lg">
-                            Entra con tu email y la clave compartida para acceder a la galeria de Alberto y Mariona, ver los recuerdos compartidos y subir nuevos momentos del dia.
+                            Entra con tu email para acceder a la galeria de Alberto y Mariona, ver los recuerdos compartidos y subir nuevos momentos del dia. Si eres admin, usa el correo oficial y su password.
                         </p>
                     </section>
 
@@ -38,7 +38,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, isSigningIn, errorMes
                             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white/60">Acceso</p>
                             <p className="mt-2 text-2xl font-semibold tracking-tight">Inicia sesion para entrar</p>
                             <p className="mt-2 text-sm leading-6 text-white/70">
-                                El email puede ser cualquiera. La clave compartida de la galeria es necesaria para desbloquear el acceso.
+                                Cualquier invitado puede entrar con su email. Solo <span className="font-semibold text-white">admin@albertoymariona.com</span> necesita introducir la password de administrador para desbloquear funciones admin.
                             </p>
                         </div>
 
@@ -63,7 +63,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, isSigningIn, errorMes
                                     type="password"
                                     value={password}
                                     onChange={(event) => setPassword(event.target.value)}
-                                    placeholder="Introduce la clave"
+                                    placeholder="Solo necesaria para admin"
                                     className="w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b76e4d] focus:ring-2 focus:ring-[#b76e4d]/20"
                                     autoComplete="current-password"
                                     disabled={isSigningIn}
@@ -91,7 +91,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, isSigningIn, errorMes
                             </div>
                             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4">
                                 <p className="font-semibold text-neutral-900">Acceso rapido</p>
-                                <p className="mt-1 leading-6">Una vez dentro, podras navegar, descargar y subir fotos como antes.</p>
+                                <p className="mt-1 leading-6">Una vez dentro, podras navegar, descargar y subir fotos. El modo admin solo se activa con el login de administrador.</p>
                             </div>
                         </div>
                     </section>

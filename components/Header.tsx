@@ -4,7 +4,6 @@ import { getProfileImageUrl } from '../services/firebase';
 
 interface HeaderProps {
   postCount: number;
-  onOpenOptions: () => void;
   isVisible: boolean;
   userId: string;
   currentUserName: string;
@@ -19,7 +18,6 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({
   postCount,
-  onOpenOptions,
   isVisible,
   userId,
   currentUserName,
@@ -102,11 +100,7 @@ const Header: React.FC<HeaderProps> = ({
       <div className="mx-auto max-w-[935px] px-4 py-4 md:px-5 md:py-7">
         <div className="flex flex-col gap-5 md:gap-7">
           <div className="flex items-start gap-4 md:gap-8">
-            <button
-              onClick={onOpenOptions}
-              className="shrink-0 rounded-full bg-gradient-to-tr from-fuchsia-600 via-rose-500 to-amber-400 p-[2px] focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2"
-              aria-label="Opciones de administrador"
-            >
+            <div className="shrink-0 rounded-full bg-gradient-to-tr from-fuchsia-600 via-rose-500 to-amber-400 p-[2px]">
               <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-white md:h-36 md:w-36">
                 {isLoading ? (
                   <div className="h-full w-full animate-pulse bg-neutral-200" />
@@ -116,7 +110,7 @@ const Header: React.FC<HeaderProps> = ({
                   <HeartIcon className="h-10 w-10 text-neutral-300 md:h-16 md:w-16" />
                 )}
               </div>
-            </button>
+            </div>
 
             <div className="min-w-0 flex-1">
               <div className="flex flex-col gap-3 md:hidden">

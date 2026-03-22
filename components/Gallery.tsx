@@ -5,10 +5,9 @@ import { MediaFile, UploadBatchState, UploadBatchSummary } from '../types';
 import Header from './Header';
 import MediaGrid from './MediaGrid';
 import UploadProgress from './UploadProgress';
-import { AddIcon, DownloadIcon, TrashIcon } from './Icons';
+import { AddIcon, DownloadIcon, GridIcon, TrashIcon } from './Icons';
 import MediaDetail from './MediaDetail';
 import Spinner from './Spinner';
-import MasterKeyModal from './MasterKeyModal';
 import ConfirmModal from './ConfirmModal';
 import GalleryLoadStatus from './GalleryLoadStatus';
 import FolderManager from './FolderManager';
@@ -17,6 +16,19 @@ import { createMediaFolder, listMediaFolders } from '../services/firebase';
 const BACKGROUND_PRELOAD_CONCURRENCY = 2;
 const BACKGROUND_PRELOAD_DELAY_MS = 250;
 const ZIP_DOWNLOAD_CONCURRENCY = 4;
+const ROOT_TAB_KEY = '__root__';
+const DESTINATION_TAB_LABELS: Record<string, string> = {
+    [ROOT_TAB_KEY]: 'Favs',
+    'sin-retocar': 'Todas',
+};
+
+const getDestinationTabLabel = (folder: string | null): string => {
+    if (folder === null) {
+        return DESTINATION_TAB_LABELS[ROOT_TAB_KEY];
+    }
+
+    return DESTINATION_TAB_LABELS[folder] ?? folder;
+};
 
 const shouldSkipBackgroundPreload = (): boolean => {
     if (typeof navigator === 'undefined') {
@@ -77,10 +89,11 @@ const buildBatchZipName = () => {
 interface GalleryProps {
     userId: string;
     currentUserName: string;
+    isAdmin: boolean;
     onSignOut: () => Promise<void> | void;
 }
 
-const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut }) => {
+const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onSignOut }) => {
     const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
     const [totalMediaCount, setTotalMediaCount] = useState<number>(0);
     const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -92,8 +105,6 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
     const [hasMore, setHasMore] = useState<boolean>(true);
     const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
 
-    const [isAdmin, setIsAdmin] = useState<boolean>(false);
-    const [isMasterKeyModalOpen, setIsMasterKeyModalOpen] = useState<boolean>(false);
     const [folders, setFolders] = useState<string[]>([]);
     const [activeFolder, setActiveFolder] = useState<string | null>(null);
     const [isCreatingFolder, setIsCreatingFolder] = useState<boolean>(false);
@@ -116,7 +127,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
     const lastPreloadedMediaIndexRef = useRef(0);
 
     const selectedMedia = selectedMediaIndex !== null ? mediaFiles[selectedMediaIndex] ?? null : null;
-    const destinationTabs = [null, ...(isAdmin ? folders : [])];
+    const destinationTabs = [null, ...folders];
 
     useEffect(() => {
         const SCROLL_THRESHOLD = 10;
@@ -175,12 +186,8 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
     }, [fetchMedia, refreshTotalMediaCount]);
 
     useEffect(() => {
-        if (!isAdmin) {
-            return;
-        }
-
         void refreshFolders();
-    }, [isAdmin, refreshFolders]);
+    }, [refreshFolders]);
 
     useEffect(() => {
         if (mediaFiles.length === 0 || shouldSkipBackgroundPreload()) {
@@ -418,21 +425,6 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
         });
     };
 
-    const handleOpenMasterKeyModal = () => {
-        setIsMasterKeyModalOpen(true);
-    };
-
-    const handleMasterKeySubmit = (key: string) => {
-        if (key === 'bodorrio') {
-            setIsAdmin(true);
-            setIsFolderManagerVisible(true);
-            setIsMasterKeyModalOpen(false);
-            alert('Modo administrador activado.');
-        } else {
-            alert('Clave incorrecta.');
-        }
-    };
-
     const handleRequestDelete = (fileName: string) => {
         if (!isAdmin) return;
         setFileToDelete(fileName);
@@ -537,7 +529,6 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
                 <div className="pb-24 md:pb-16">
                     <Header
                         postCount={totalMediaCount}
-                        onOpenOptions={handleOpenMasterKeyModal}
                         isVisible={isHeaderVisible}
                         userId={userId}
                         currentUserName={currentUserName}
@@ -553,23 +544,28 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
                     <main className="mx-auto max-w-[935px] px-0 md:px-4 md:pt-6">
                         {isUploading && uploadState && <UploadProgress state={uploadState} />}
 
-                        {isAdmin && !isSelectionModeActive && (
-                            <div className="mb-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 md:mb-6 md:px-0">
-                                {destinationTabs.map((folder) => {
-                                    const isActive = activeFolder === folder;
-                                    const label = folder ?? 'Raíz';
+                        {!isSelectionModeActive && destinationTabs.length > 0 && (
+                            <div className="mb-4 border-y border-neutral-200 bg-white md:mb-6 md:rounded-t-[18px] md:border md:border-b-0">
+                                <div className="flex items-stretch overflow-x-auto px-2 md:px-4">
+                                    {destinationTabs.map((folder) => {
+                                        const isActive = activeFolder === folder;
+                                        const label = getDestinationTabLabel(folder);
 
-                                    return (
-                                        <button
-                                            key={label}
-                                            type="button"
-                                            onClick={() => setActiveFolder(folder)}
-                                            className={`whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition ${isActive ? 'border-neutral-950 bg-neutral-950 text-white' : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-500 hover:text-neutral-950'}`}
-                                        >
-                                            {label}
-                                        </button>
-                                    );
-                                })}
+                                        return (
+                                            <button
+                                                key={label}
+                                                type="button"
+                                                onClick={() => setActiveFolder(folder)}
+                                                className={`group relative inline-flex min-w-[110px] flex-1 shrink-0 items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition md:min-w-[140px] md:flex-none ${isActive ? 'text-neutral-950' : 'text-neutral-400 hover:text-neutral-700'}`}
+                                                aria-pressed={isActive}
+                                            >
+                                                <GridIcon className={`h-4 w-4 transition ${isActive ? 'text-neutral-950' : 'text-neutral-300 group-hover:text-neutral-500'}`} />
+                                                <span className="truncate">{label}</span>
+                                                <span className={`absolute inset-x-3 bottom-0 h-[2px] rounded-full transition ${isActive ? 'bg-neutral-950' : 'bg-transparent group-hover:bg-neutral-300'}`} />
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         )}
 
@@ -679,12 +675,6 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, onSignOut })
                     </button>
                 </div>
             )}
-
-            <MasterKeyModal
-                isOpen={isMasterKeyModalOpen}
-                onClose={() => setIsMasterKeyModalOpen(false)}
-                onSubmit={handleMasterKeySubmit}
-            />
 
             <ConfirmModal
                 isOpen={isConfirmModalOpen}
