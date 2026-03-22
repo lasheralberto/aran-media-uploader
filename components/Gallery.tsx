@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { listMediaFiles, deleteFileFromAllLocations, handleFileUploadProcess } from '../services/firebase';
+import { countMediaFiles, listMediaFiles, deleteFileFromAllLocations, handleFileUploadProcess } from '../services/firebase';
 import { MediaFile, UploadBatchState, UploadBatchSummary } from '../types';
 import Header from './Header';
 import MediaGrid from './MediaGrid';
@@ -9,6 +9,7 @@ import MediaDetail from './MediaDetail';
 import Spinner from './Spinner';
 import MasterKeyModal from './MasterKeyModal';
 import ConfirmModal from './ConfirmModal';
+import GalleryLoadStatus from './GalleryLoadStatus';
 
 
 interface GalleryProps {
@@ -17,6 +18,7 @@ interface GalleryProps {
 
 const Gallery: React.FC<GalleryProps> = ({ userId }) => {
     const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
+    const [totalMediaCount, setTotalMediaCount] = useState<number>(0);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isUploading, setIsUploading] = useState<boolean>(false);
     const [uploadState, setUploadState] = useState<UploadBatchState | null>(null);
@@ -59,6 +61,11 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
+    const refreshTotalMediaCount = useCallback(async () => {
+        const total = await countMediaFiles(userId);
+        setTotalMediaCount(total);
+    }, [userId]);
+
     const fetchMedia = useCallback(async (token?: string) => {
         const isInitialFetch = !token;
 
@@ -83,7 +90,8 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
 
     useEffect(() => {
         fetchMedia();
-    }, [fetchMedia]);
+        refreshTotalMediaCount();
+    }, [fetchMedia, refreshTotalMediaCount]);
 
     const loadMoreMedia = () => {
         if (hasMore && !isLoadingMore && nextPageToken) {
@@ -111,7 +119,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             setIsUploading,
             setUploadState,
             async (summary: UploadBatchSummary) => {
-                await fetchMedia();
+                await Promise.all([fetchMedia(), refreshTotalMediaCount()]);
 
                 if (summary.failedFiles > 0) {
                     alert(`Subida completada con incidencias: ${summary.successfulFiles} ok, ${summary.failedFiles} fallidos.`);
@@ -187,6 +195,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
         try {
             await deleteFileFromAllLocations(fileToDelete, userId);
             setMediaFiles(prev => prev.filter(file => file.name !== fileToDelete));
+            setTotalMediaCount(prev => Math.max(0, prev - 1));
             if (selectedMedia?.name === fileToDelete) {
                 setSelectedMedia(null);
             }
@@ -215,6 +224,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             );
             await Promise.all(deletePromises);
             setMediaFiles(prev => prev.filter(file => !selectedItems.includes(file.name)));
+            setTotalMediaCount(prev => Math.max(0, prev - selectedItems.length));
             if (selectedMedia && selectedItems.includes(selectedMedia.name)) {
                 setSelectedMedia(null);
             }
@@ -242,7 +252,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             ) : (
                 <div className="pb-24 md:pb-16">
                     <Header
-                        postCount={mediaFiles.length}
+                        postCount={totalMediaCount}
                         onOpenOptions={handleOpenMasterKeyModal}
                         isVisible={isHeaderVisible}
                         userId={userId}
@@ -308,16 +318,23 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             )}
 
             {!selectedMedia && !isSelectionModeActive && (
-                <div className="fixed bottom-5 right-5 z-20 md:bottom-8 md:right-8">
-                    <button
-                        onClick={handleUploadClick}
-                        disabled={isUploading}
-                        className="flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-950 text-white shadow-[0_12px_30px_rgba(17,17,17,0.18)] transition hover:scale-[1.03] hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 md:h-16 md:w-16 md:rounded-full"
-                        aria-label={isUploading ? 'Subida en progreso' : 'Subir archivos'}
-                    >
-                        <AddIcon className="h-8 w-8 md:h-9 md:w-9" />
-                    </button>
-                </div>
+                <>
+                    <GalleryLoadStatus
+                        loadedCount={mediaFiles.length}
+                        totalCount={totalMediaCount}
+                        isLoadingMore={isLoadingMore}
+                    />
+                    <div className="fixed bottom-5 right-5 z-20 md:bottom-8 md:right-8">
+                        <button
+                            onClick={handleUploadClick}
+                            disabled={isUploading}
+                            className="flex h-14 w-14 items-center justify-center rounded-2xl bg-neutral-950 text-white shadow-[0_12px_30px_rgba(17,17,17,0.18)] transition hover:scale-[1.03] hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 md:h-16 md:w-16 md:rounded-full"
+                            aria-label={isUploading ? 'Subida en progreso' : 'Subir archivos'}
+                        >
+                            <AddIcon className="h-8 w-8 md:h-9 md:w-9" />
+                        </button>
+                    </div>
+                </>
             )}
 
             <MasterKeyModal

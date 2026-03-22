@@ -112,7 +112,7 @@ const Header: React.FC<HeaderProps> = ({
               <div className="flex flex-col gap-3 md:hidden">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <h1 className="truncate text-lg font-semibold text-neutral-900">thebodorriogallery</h1>
+                    <h1 className="truncate text-lg font-semibold text-neutral-900">aymfotone</h1>
                     <p className="text-sm text-neutral-500">Alberto y Mariona</p>
                   </div>
                   <button

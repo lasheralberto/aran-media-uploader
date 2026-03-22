@@ -7,6 +7,7 @@ import {
   uploadBytesResumable,
   getDownloadURL,
   list,
+  listAll,
   deleteObject,
   type StorageReference,
   type UploadTaskSnapshot,
@@ -482,7 +483,19 @@ export interface ListMediaResult {
   nextPageToken?: string;
 }
 
-const DEFAULT_PAGE_SIZE = 21; // A multiple of 3 for the grid layout
+const DEFAULT_PAGE_SIZE = 20;
+
+export const countMediaFiles = async (userId: string, category: string | null = null): Promise<number> => {
+  try {
+    const basePath = category ? `feedPosts/${userId}/${category}` : `feedPosts/${userId}`;
+    const mediaFolderRef = ref(storage, basePath);
+    const result = await listAll(mediaFolderRef);
+    return result.items.length;
+  } catch (error) {
+    console.error('Error counting files:', error);
+    return 0;
+  }
+};
 
 export const listMediaFiles = async (
   userId: string,
