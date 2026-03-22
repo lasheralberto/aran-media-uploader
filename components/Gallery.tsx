@@ -93,6 +93,13 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
         refreshTotalMediaCount();
     }, [fetchMedia, refreshTotalMediaCount]);
 
+    useEffect(() => {
+        if (!isAdmin && isSelectionModeActive) {
+            setIsSelectionModeActive(false);
+            setSelectedItems([]);
+        }
+    }, [isAdmin, isSelectionModeActive]);
+
     const loadMoreMedia = () => {
         if (hasMore && !isLoadingMore && nextPageToken) {
             fetchMedia(nextPageToken);
@@ -152,6 +159,11 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
 
     const handleMediaItemClick = (file: MediaFile) => {
         if (isSelectionModeActive) {
+            if (!isAdmin) {
+                handleCancelSelection();
+                return;
+            }
+
             setSelectedItems(prev =>
                 prev.includes(file.name)
                     ? prev.filter(name => name !== file.name)
@@ -186,11 +198,18 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
     };
 
     const handleRequestDelete = (fileName: string) => {
+        if (!isAdmin) return;
         setFileToDelete(fileName);
         setIsConfirmModalOpen(true);
     };
 
     const handleConfirmDelete = async () => {
+        if (!isAdmin) {
+            setIsConfirmModalOpen(false);
+            setFileToDelete(null);
+            return;
+        }
+
         if (!fileToDelete) return;
         try {
             await deleteFileFromAllLocations(fileToDelete, userId);
@@ -210,11 +229,18 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
     };
 
     const handleRequestMultipleDelete = () => {
+        if (!isAdmin) return;
         if (selectedItems.length === 0) return;
         setIsMultipleDeleteModalOpen(true);
     };
 
     const handleConfirmMultipleDelete = async () => {
+        if (!isAdmin) {
+            setIsMultipleDeleteModalOpen(false);
+            handleCancelSelection();
+            return;
+        }
+
         if (selectedItems.length === 0) return;
 
         setIsDeleting(true);
