@@ -15,6 +15,7 @@ const MediaItem: React.FC<MediaItemProps> = ({ file, onClick, isSelectionMode, i
     const [isLoaded, setIsLoaded] = useState(false);
     const timerRef = useRef<number | null>(null);
     const isLongPress = useRef(false);
+    const imageSource = file.previewUrl ?? file.url;
 
     const handleInteractionStart = () => {
         isLongPress.current = false;
@@ -50,10 +51,12 @@ const MediaItem: React.FC<MediaItemProps> = ({ file, onClick, isSelectionMode, i
         >
             {file.type === 'image' ? (
                 <img 
-                    src={file.url} 
+                    src={imageSource} 
                     alt={file.name} 
                     className={`h-full w-full object-cover transition duration-300 ease-out ${isLoaded ? 'opacity-100' : 'opacity-0'} ${isSelectionMode ? '' : 'group-hover:brightness-[0.92]'}`}
                     loading="lazy"
+                    decoding="async"
+                    fetchPriority="low"
                     onLoad={() => setIsLoaded(true)}
                 />
             ) : (

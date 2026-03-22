@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { listMediaFiles, deleteFileFromAllLocations, copyFileToCategory, checkCategoryContent, handleFileUploadProcess } from '../services/firebase';
+import { listMediaFiles, deleteFileFromAllLocations, handleFileUploadProcess } from '../services/firebase';
 import { MediaFile, UploadBatchState, UploadBatchSummary } from '../types';
 import Header from './Header';
 import MediaGrid from './MediaGrid';
 import UploadProgress from './UploadProgress';
-import { AddIcon, ChurchIcon, CelebrationIcon, PartyIcon, TrashIcon } from './Icons';
+import { AddIcon, TrashIcon } from './Icons';
 import MediaDetail from './MediaDetail';
 import Spinner from './Spinner';
 import MasterKeyModal from './MasterKeyModal';
@@ -14,13 +14,6 @@ import ConfirmModal from './ConfirmModal';
 interface GalleryProps {
     userId: string;
 }
-
-type Category = 'Church' | 'Celebration' | 'Party';
-const CATEGORIES: { id: Category; label: string }[] = [
-    { id: 'Church', label: 'Iglesia' },
-    { id: 'Celebration', label: 'Celebracion' },
-    { id: 'Party', label: 'Fiesta' },
-];
 
 const Gallery: React.FC<GalleryProps> = ({ userId }) => {
     const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
@@ -47,18 +40,6 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
 
     const [isSelectionModeActive, setIsSelectionModeActive] = useState<boolean>(false);
     const [selectedItems, setSelectedItems] = useState<string[]>([]);
-    const [isCopying, setIsCopying] = useState<boolean>(false);
-
-    const [categoriesWithContent, setCategoriesWithContent] = useState<Category[]>([]);
-
-    const refreshCategoryContentCheck = useCallback(async () => {
-        const checks = CATEGORIES.map(async (cat) => {
-            const hasContent = await checkCategoryContent(userId, cat.id);
-            return hasContent ? cat.id : null;
-        });
-        const results = (await Promise.all(checks)).filter(Boolean) as Category[];
-        setCategoriesWithContent(results);
-    }, [userId]);
 
     useEffect(() => {
         const SCROLL_THRESHOLD = 10;
@@ -102,8 +83,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
 
     useEffect(() => {
         fetchMedia();
-        refreshCategoryContentCheck();
-    }, [fetchMedia, refreshCategoryContentCheck]);
+    }, [fetchMedia]);
 
     const loadMoreMedia = () => {
         if (hasMore && !isLoadingMore && nextPageToken) {
@@ -132,7 +112,6 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             setUploadState,
             async (summary: UploadBatchSummary) => {
                 await fetchMedia();
-                await refreshCategoryContentCheck();
 
                 if (summary.failedFiles > 0) {
                     alert(`Subida completada con incidencias: ${summary.successfulFiles} ok, ${summary.failedFiles} fallidos.`);
@@ -158,6 +137,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
     };
 
     const handleLongPress = (file: MediaFile) => {
+        if (!isAdmin) return;
         setIsSelectionModeActive(true);
         setSelectedItems([file.name]);
     };
@@ -171,41 +151,6 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             );
         } else {
             setSelectedMedia(file);
-        }
-    };
-
-    const handleAddToCategory = async (category: Category) => {
-        if (!isSelectionModeActive || selectedItems.length === 0 || isCopying) return;
-
-        setIsCopying(true);
-        try {
-            const copyPromises = selectedItems.map(fileName =>
-                copyFileToCategory(fileName, userId, category)
-            );
-            await Promise.all(copyPromises);
-            await refreshCategoryContentCheck();
-            alert(`${selectedItems.length} archivo(s) anadido(s) a '${CATEGORIES.find(c => c.id === category)?.label}' con exito.`);
-        } catch (error) {
-            console.error('Error copying files:', error);
-            alert('Hubo un error al anadir los archivos a la categoria.');
-        } finally {
-            setIsCopying(false);
-            setIsSelectionModeActive(false);
-            setSelectedItems([]);
-        }
-    };
-
-    const handleStoryBubbleClick = async (categoryId: string) => {
-        try {
-            const { files } = await listMediaFiles(userId, categoryId, undefined, 1000);
-            if (files.length > 0) {
-                alert(`La historia de ${categoryId} no esta disponible en esta vista.`);
-            } else {
-                alert('Esta categoria aun no tiene recuerdos.');
-            }
-        } catch (error) {
-            console.error('Failed to load story media:', error);
-            alert('No se pudieron cargar las historias.');
         }
     };
 
@@ -245,7 +190,6 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             if (selectedMedia?.name === fileToDelete) {
                 setSelectedMedia(null);
             }
-            await refreshCategoryContentCheck();
             alert('Archivo eliminado correctamente de todas las ubicaciones.');
         } catch (error) {
             console.error('Error deleting file:', error);
@@ -276,7 +220,6 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             }
             setIsSelectionModeActive(false);
             setSelectedItems([]);
-            await refreshCategoryContentCheck();
             alert(`${selectedItems.length} archivo(s) eliminado(s) correctamente de todas las ubicaciones.`);
         } catch (error) {
             console.error('Error deleting files:', error);
@@ -316,34 +259,13 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                                 <div className="mb-3 flex items-center justify-between gap-3">
                                     <div>
                                         <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-neutral-400">Seleccion</p>
-                                        <p className="text-sm font-semibold text-neutral-900">Guardar {selectedItems.length} recuerdo{selectedItems.length > 1 ? 's' : ''} en highlights</p>
+                                        <p className="text-sm font-semibold text-neutral-900">{selectedItems.length} recuerdo{selectedItems.length > 1 ? 's' : ''} seleccionado{selectedItems.length > 1 ? 's' : ''}</p>
                                     </div>
                                     <div className="text-xs text-neutral-500">Manten pulsado para seguir seleccionando</div>
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-2.5 md:gap-3">
-                                    {CATEGORIES.map(category => (
-                                        <button
-                                            key={category.id}
-                                            onClick={() => handleAddToCategory(category.id)}
-                                            disabled={isCopying}
-                                            className="flex min-h-0 items-center gap-3 rounded-2xl border border-neutral-200 bg-white px-3 py-3 text-left transition hover:border-neutral-300 hover:bg-neutral-50 disabled:cursor-wait disabled:opacity-50"
-                                        >
-                                            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500 via-rose-500 to-amber-400 p-[1px]">
-                                                <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-neutral-900">
-                                                    {category.id === 'Church' ? <ChurchIcon className="h-5 w-5" /> : category.id === 'Celebration' ? <CelebrationIcon className="h-5 w-5" /> : <PartyIcon className="h-5 w-5" />}
-                                                </div>
-                                            </div>
-                                            <div className="min-w-0">
-                                                <span className="block truncate text-sm font-semibold text-neutral-900">{category.label}</span>
-                                                <span className="block text-xs text-neutral-500">Anadir a historia destacada</span>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
-
                                 {isAdmin && selectedItems.length > 0 && (
-                                    <div className="mt-3 flex justify-center md:justify-end">
+                                    <div className="flex justify-center md:justify-end">
                                         <button
                                             onClick={handleRequestMultipleDelete}
                                             disabled={isDeleting}

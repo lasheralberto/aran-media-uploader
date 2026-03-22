@@ -15,6 +15,7 @@ const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDele
     const [isDownloading, setIsDownloading] = useState(false);
     const [isSharing, setIsSharing] = useState(false);
     const [isCopied, setIsCopied] = useState(false);
+    const [isFullResolutionLoaded, setIsFullResolutionLoaded] = useState(false);
 
     const handleDelete = () => {
         onDelete(file.name);
@@ -113,11 +114,24 @@ const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDele
                 <div className="flex h-full w-full max-w-[1180px] overflow-hidden bg-white md:h-auto md:max-h-[88vh] md:rounded-[28px] md:shadow-[0_30px_80px_rgba(0,0,0,0.35)]">
                     <div className="relative flex min-h-[58vh] flex-1 items-center justify-center bg-neutral-950 md:min-h-[720px]">
                         {file.type === 'image' ? (
-                            <img 
-                                src={file.url} 
-                                alt={file.name} 
-                                className="max-h-full w-full object-contain" 
-                            />
+                            <>
+                                {file.previewUrl && file.previewUrl !== file.url && !isFullResolutionLoaded && (
+                                    <img
+                                        src={file.previewUrl}
+                                        alt={file.name}
+                                        className="absolute inset-0 h-full w-full object-contain blur-xl scale-105 opacity-70"
+                                        aria-hidden="true"
+                                    />
+                                )}
+                                <img 
+                                    src={file.url} 
+                                    alt={file.name} 
+                                    className={`max-h-full w-full object-contain transition-opacity duration-300 ${isFullResolutionLoaded ? 'opacity-100' : 'opacity-0'}`}
+                                    fetchPriority="high"
+                                    decoding="async"
+                                    onLoad={() => setIsFullResolutionLoaded(true)}
+                                />
+                            </>
                         ) : (
                             <video src={file.url} className="max-h-full w-full object-contain" controls autoPlay></video>
                         )}

@@ -3,19 +3,16 @@ import { initializeApp } from "firebase/app";
 import {
   getStorage,
   ref,
+  uploadBytes,
   uploadBytesResumable,
   getDownloadURL,
   list,
   deleteObject,
-  uploadBytes,
-  getBlob,
-  type UploadTaskSnapshot,
   type StorageReference,
+  type UploadTaskSnapshot,
   type ListResult,
   type UploadMetadata
 } from "firebase/storage";
-
-import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 
 import {
   MediaFile,
@@ -42,13 +39,12 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
-const ai = new GoogleGenAI({
-  apiKey: "AIzaSyBHoBJ_a8NHjdBulMJXnXnFpKbaoLO6qH4"
-});
 
 const MAX_PARALLEL_UPLOADS = 3;
 const MAX_UPLOAD_RETRIES = 4;
 const BASE_RETRY_DELAY_MS = 1500;
+const THUMBNAIL_MAX_DIMENSION = 480;
+const THUMBNAIL_QUALITY = 0.72;
 const RETRYABLE_STORAGE_ERROR_CODES = new Set([
   'storage/canceled',
   'storage/invalid-checksum',
@@ -78,6 +74,89 @@ const sanitizeFileName = (name: string) => name.replace(/[\/\\#?]/g, '_');
 const buildStoredFileName = (name: string) => `${Number.MAX_SAFE_INTEGER - Date.now()}-${sanitizeFileName(name)}`;
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const THUMBNAIL_FOLDER = 'thumbnails';
+
+const shouldGenerateThumbnail = (file: File) => file.type.startsWith('image/');
+
+const loadImageElement = (file: File): Promise<HTMLImageElement> => {
+  const objectUrl = URL.createObjectURL(file);
+
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(image);
+    };
+    image.onerror = error => {
+      URL.revokeObjectURL(objectUrl);
+      reject(error);
+    };
+    image.src = objectUrl;
+  });
+};
+
+const canvasToBlob = (canvas: HTMLCanvasElement, mimeType: string, quality?: number): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (!blob) {
+        reject(new Error('No se pudo generar la miniatura.'));
+        return;
+      }
+      resolve(blob);
+    }, mimeType, quality);
+  });
+};
+
+const createThumbnailBlob = async (file: File): Promise<Blob | null> => {
+  if (!shouldGenerateThumbnail(file)) {
+    return null;
+  }
+
+  const image = await loadImageElement(file);
+  const largestSide = Math.max(image.width, image.height);
+
+  if (!largestSide) {
+    return null;
+  }
+
+  const scale = Math.min(1, THUMBNAIL_MAX_DIMENSION / largestSide);
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('No se pudo inicializar el canvas para generar la miniatura.');
+  }
+
+  context.drawImage(image, 0, 0, width, height);
+
+  return canvasToBlob(canvas, 'image/webp', THUMBNAIL_QUALITY);
+};
+
+const uploadThumbnail = async (thumbnailBlob: Blob, userId: string, fileName: string): Promise<void> => {
+  const thumbnailRef = ref(storage, `feedPosts/${userId}/${THUMBNAIL_FOLDER}/${fileName}`);
+  await uploadBytes(thumbnailRef, thumbnailBlob, {
+    cacheControl: 'public, max-age=31536000, immutable',
+    contentType: thumbnailBlob.type || 'image/webp',
+  });
+};
+
+const getThumbnailUrl = async (userId: string, fileName: string): Promise<string | undefined> => {
+  try {
+    const thumbnailRef = ref(storage, `feedPosts/${userId}/${THUMBNAIL_FOLDER}/${fileName}`);
+    return await getDownloadURL(thumbnailRef);
+  } catch (error: any) {
+    if (error?.code !== 'storage/object-not-found') {
+      console.warn(`No se pudo cargar la miniatura para ${fileName}:`, error);
+    }
+    return undefined;
+  }
+};
 
 const getPreferredUploadConcurrency = (): number => {
   if (typeof navigator === 'undefined') {
@@ -192,101 +271,6 @@ const updateUploadItem = (
   });
 };
 
-// Helper to convert Firebase Storage reference to base64
-const storageRefToBase64 = async (storageRef: StorageReference): Promise<string> => {
-    try {
-        console.log('Getting blob from Firebase Storage reference:', storageRef.fullPath);
-        
-        // Use Firebase Storage's native getBlob method
-        const blob = await getBlob(storageRef);
-        
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                const result = reader.result as string;
-                if (!result) {
-                    reject(new Error('FileReader result is null'));
-                    return;
-                }
-                // Extract base64 data (remove data:image/...;base64, prefix)
-                const base64Data = result.split(',')[1];
-                if (!base64Data) {
-                    reject(new Error('Failed to extract base64 data from result'));
-                    return;
-                }
-                console.log('Successfully converted to base64, length:', base64Data.length);
-                resolve(base64Data);
-            };
-            reader.onerror = (error) => {
-                console.error('FileReader error:', error);
-                reject(error);
-            };
-            reader.readAsDataURL(blob);
-        });
-    } catch (error) {
-        console.error('Error in storageRefToBase64:', error);
-        throw error;
-    }
-};
-
-export async function classifyImage(
-  fileName: string,
-  userId: string,
-  mimeType: string,
-): Promise<string | null> {
-  try {
-    
-    // Create storage reference directly
-    const fileRef = ref(storage, `feedPosts/${userId}/${fileName}`);
-    const base64ImageData = await storageRefToBase64(fileRef);
-
-    const imagePart = {
-      inlineData: {
-        mimeType: mimeType,
-        data: base64ImageData,
-      },
-    };
-
-    const textPart = {
-      text: "Analyze this image from a wedding and classify it into one of the following three categories: 'Church', 'Celebration', or 'Party'. Your response must be a JSON object with a single 'category' key, like {\"category\": \"CATEGORY_NAME\"}. Only one of the three categories should be returned. If you consider that the image does not fit any of these categories, respond with {\"category\": \"Unknown\"}.",
-    };
-
- 
-    const response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: { parts: [imagePart, textPart] },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-                category: {
-                    type: Type.STRING,
-                    description: 'The category of the image. Must be one of: Church, Celebration, Party, Unknown.',
-                    enum: ['Church', 'Celebration', 'Party', 'Unknown']
-                }
-            },
-            required: ['category']
-        }
-      }
-    });
-
-    const jsonString = response.text.trim();
-    
-    const result = JSON.parse(jsonString);
-    
-    if (result.category && ['Church', 'Celebration', 'Party'].includes(result.category)) {
-        return result.category;
-    }
-     
-    return null;
-  } catch (error) {
- 
-    
-    return null; // Return null if classification fails
-  }
-}
-
 const getFileType = (fileName: string): 'image' | 'video' => {
   const name = fileName.toLowerCase();
   const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.mkv', '.avi', '.wmv', '.flv'];
@@ -361,20 +345,15 @@ export const uploadFile = async (
         totalBytes: file.size,
       });
 
-      if (file.type.startsWith('image/')) {
-        classifyImage(fileName, userId, file.type)
-          .then(imageCategory => {
-            if (!imageCategory) {
-              return;
-            }
-
-            return copyFileToCategory(fileName, userId, imageCategory).catch(error => {
-              console.error(`Failed to copy file ${fileName} to category ${imageCategory}:`, error);
-            });
-          })
-          .catch(error => {
-            console.error(`Failed to classify file ${fileName}:`, error);
-          });
+      if (shouldGenerateThumbnail(file)) {
+        try {
+          const thumbnailBlob = await createThumbnailBlob(file);
+          if (thumbnailBlob) {
+            await uploadThumbnail(thumbnailBlob, userId, fileName);
+          }
+        } catch (thumbnailError) {
+          console.warn(`No se pudo generar la miniatura para ${file.name}:`, thumbnailError);
+        }
       }
 
       onProgress({
@@ -522,10 +501,16 @@ export const listMediaFiles = async (
 
     const mediaFilesPromises = listResponse.items.map(async (itemRef: StorageReference) => {
       const url = await getDownloadURL(itemRef);
+      const type = getFileType(itemRef.name);
+      const previewUrl = type === 'image'
+        ? await getThumbnailUrl(userId, itemRef.name) ?? url
+        : undefined;
+
       return {
         name: itemRef.name,
         url,
-        type: getFileType(itemRef.name)
+        previewUrl,
+        type,
       };
     });
 
@@ -559,6 +544,7 @@ export const deleteFileFromAllLocations = async (fileName: string, userId: strin
   
   const locations = [
     `feedPosts/${userId}`, // Main folder
+    `feedPosts/${userId}/${THUMBNAIL_FOLDER}`, // Thumbnails
     `feedPosts/${userId}/Church`, // Church category
     `feedPosts/${userId}/Celebration`, // Celebration category
     `feedPosts/${userId}/Party`, // Party category
@@ -594,52 +580,5 @@ export const deleteFileFromAllLocations = async (fileName: string, userId: strin
   
   if (successCount === 0 && errorCount > 0) {
     throw new Error(`Failed to delete ${fileName} from any location`);
-  }
-};
-
-export const copyFileToCategory = async (
-  fileName: string,
-  userId: string,
-  category: string
-): Promise<void> => {
-  // referencia al archivo original
-  const sourceRef = ref(storage, `feedPosts/${userId}/${fileName}`);
-
-  // referencia destino (misma estructura pero con categoría)
-  const destRef = ref(storage, `feedPosts/${userId}/${category}/${fileName}`);
-
-  try {
-    // obtenemos el blob del archivo original
-    const blob = await getBlob(sourceRef);
-
-    // lo subimos directamente al nuevo path
-    await uploadBytes(destRef, blob);
-
-    console.log(`Archivo '${fileName}' copiado a la categoría '${category}'`);
-  } catch (error) {
-    console.error(`Error copiando archivo '${fileName}' a '${category}':`, error);
-    throw error;
-  }
-};
-
-
-export const checkCategoryContent = async (
-  userId: string,
-  category: string
-): Promise<boolean> => {
-  const categoryRef = ref(storage, `feedPosts/${userId}/${category}`);
-  try {
-    // List with a small maxResults to check if there are actual files
-    const result = await list(categoryRef, { maxResults: 10 });
-    
-    // Only count actual file items, not prefixes (folders)
-    const hasItems = result.items.length > 0;
-    
-    // Return true only if there are actual file items (not just folders/prefixes)
-    return hasItems;
-  } catch (error) {
-    // If the folder doesn't exist, Firebase throws an error
-    //console.log(`⚠️ Category "${category}" appears to be empty or doesn't exist:`, error);
-    return false;
   }
 };

@@ -2,6 +2,7 @@
 export interface MediaFile {
   name: string;
   url: string;
+  previewUrl?: string;
   type: 'image' | 'video';
 }
 
