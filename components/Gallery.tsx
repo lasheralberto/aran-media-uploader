@@ -100,11 +100,11 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
         }
     }, [isAdmin, isSelectionModeActive]);
 
-    const loadMoreMedia = () => {
+    const loadMoreMedia = useCallback(() => {
         if (hasMore && !isLoadingMore && nextPageToken) {
             fetchMedia(nextPageToken);
         }
-    };
+    }, [fetchMedia, hasMore, isLoadingMore, nextPageToken]);
 
     const observer = useRef<IntersectionObserver | null>(null);
     const lastElementRef = useCallback((node: HTMLDivElement | null) => {
@@ -116,7 +116,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
             }
         });
         if (node) observer.current.observe(node);
-    }, [isLoadingMore, hasMore]);
+    }, [isLoadingMore, hasMore, loadMoreMedia]);
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
@@ -349,6 +349,8 @@ const Gallery: React.FC<GalleryProps> = ({ userId }) => {
                         loadedCount={mediaFiles.length}
                         totalCount={totalMediaCount}
                         isLoadingMore={isLoadingMore}
+                        hasMore={hasMore}
+                        onLoadMore={loadMoreMedia}
                     />
                     <div className="fixed bottom-5 right-5 z-20 md:bottom-8 md:right-8">
                         <button
