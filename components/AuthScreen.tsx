@@ -12,8 +12,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, isSigningIn, errorMes
     const [landingImageUrl, setLandingImageUrl] = useState<string | null>(null);
     const [isLandingImageLoaded, setIsLandingImageLoaded] = useState(false);
     const [hasEntered, setHasEntered] = useState(false);
-    const isFormReady = !landingImageUrl || isLandingImageLoaded;
-    const isFormVisible = hasEntered && isFormReady;
 
     useEffect(() => {
         const enterTimeout = window.setTimeout(() => {
@@ -134,8 +132,8 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, isSigningIn, errorMes
                 </section>
 
                 <section className="relative z-10 flex min-h-screen items-center justify-center px-4 py-4 sm:px-6 sm:py-6 lg:min-h-0 lg:px-10 lg:py-10">
-                    <div className={`w-full max-w-md rounded-[28px] border border-white/35 bg-white/70 p-2.5 shadow-[0_30px_90px_rgba(32,24,16,0.16)] backdrop-blur-[18px] transition-[transform,opacity,filter] duration-[1200ms] ease-out sm:max-w-md lg:max-w-[28rem] lg:rounded-[32px] lg:border-black/5 lg:bg-white/72 ${isFormVisible ? 'translate-y-0 opacity-100 blur-0' : 'translate-y-6 opacity-0 blur-md'}`}>
-                        <form onSubmit={handleSubmit} className={`rounded-[24px] border border-black/6 bg-white/88 p-4 transition-[transform,opacity] duration-[1200ms] ease-out md:p-5 ${isFormVisible ? 'scale-100 opacity-100' : 'scale-[0.985] opacity-80'}`}>
+                    <div className={`w-full max-w-md rounded-[28px] border border-white/35 bg-white/70 p-2.5 shadow-[0_30px_90px_rgba(32,24,16,0.16)] backdrop-blur-[18px] transition-[transform,opacity] duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] sm:max-w-md lg:max-w-[28rem] lg:rounded-[32px] lg:border-black/5 lg:bg-white/72 ${hasEntered ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}`}>
+                        <form onSubmit={handleSubmit} className={`rounded-[24px] border border-black/6 bg-white/88 p-4 transition-opacity duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] md:p-5 ${hasEntered ? 'opacity-100' : 'opacity-0'}`}>
                             <div className="mb-3 text-center lg:hidden">
                                 <h2 className="text-[2rem] font-semibold leading-none tracking-[-0.08em] text-neutral-950">
                                     AM2026
