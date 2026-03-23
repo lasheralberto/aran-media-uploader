@@ -10,6 +10,7 @@ interface AuthScreenProps {
 const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, isSigningIn, errorMessage }) => {
     const [password, setPassword] = useState('');
     const [landingImageUrl, setLandingImageUrl] = useState<string | null>(null);
+    const [isLandingImageLoaded, setIsLandingImageLoaded] = useState(false);
 
     const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -22,8 +23,39 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, isSigningIn, errorMes
         const loadLandingImage = async () => {
             const imageUrl = await getLandingImageUrl();
 
-            if (isMounted) {
+            if (!imageUrl) {
+                if (isMounted) {
+                    setLandingImageUrl(null);
+                    setIsLandingImageLoaded(false);
+                }
+                return;
+            }
+
+            const image = new Image();
+            image.decoding = 'async';
+            image.src = imageUrl;
+
+            const handleImageReady = () => {
+                if (!isMounted) {
+                    return;
+                }
+
                 setLandingImageUrl(imageUrl);
+                setIsLandingImageLoaded(true);
+            };
+
+            image.onload = handleImageReady;
+
+            try {
+                await image.decode();
+                handleImageReady();
+            } catch {
+                image.onerror = () => {
+                    if (isMounted) {
+                        setLandingImageUrl(imageUrl);
+                        setIsLandingImageLoaded(false);
+                    }
+                };
             }
         };
 
@@ -41,22 +73,35 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, isSigningIn, errorMes
             <div className="absolute bottom-[-10rem] left-[40%] h-[24rem] w-[24rem] rounded-full bg-[#d7c5b3]/30 blur-3xl" />
 
             <main className="relative min-h-screen lg:grid lg:grid-cols-[0.95fr_0.85fr]">
-                <section className="relative flex min-h-[54vh] items-end overflow-hidden px-5 pt-5 sm:min-h-[62vh] sm:px-6 lg:min-h-screen lg:px-10 lg:py-10">
+                <section className="absolute inset-0 overflow-hidden lg:relative lg:flex lg:min-h-screen lg:items-end lg:px-10 lg:py-10">
                     <div className="absolute inset-0 rounded-none lg:rounded-r-[40px] lg:rounded-l-none">
+                        <div className="absolute inset-0 bg-[linear-gradient(180deg,_rgba(255,255,255,0.68),_rgba(220,206,190,0.82))]" />
+
                         {landingImageUrl ? (
                             <img
                                 src={landingImageUrl}
                                 alt="Vielha - Val d'Aran"
-                                className="h-full w-full object-contain object-center lg:object-cover"
+                                className={`h-full w-full object-cover object-center transition duration-700 ease-out lg:object-cover ${isLandingImageLoaded ? 'scale-100 opacity-100' : 'scale-[1.015] opacity-0'}`}
+                                decoding="async"
+                                fetchPriority="high"
                             />
                         ) : (
                             <div className="h-full w-full bg-[linear-gradient(180deg,_rgba(255,255,255,0.6),_rgba(218,202,187,0.65))]" />
                         )}
+
+                        {!isLandingImageLoaded && (
+                            <div className="absolute inset-0 backdrop-blur-[10px] bg-white/18">
+                                <div className="absolute inset-x-[18%] top-[14%] h-24 rounded-full bg-white/28 blur-3xl" />
+                                <div className="absolute bottom-[12%] left-[12%] h-32 w-32 rounded-full bg-[#d8c3ae]/28 blur-3xl" />
+                                <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#f3eee7]/80 to-transparent lg:hidden" />
+                            </div>
+                        )}
+
                         <div className="absolute inset-0 bg-[linear-gradient(180deg,_rgba(18,18,18,0.08),_rgba(18,18,18,0.18))] lg:bg-[linear-gradient(90deg,_rgba(18,18,18,0.14),_rgba(18,18,18,0.02))]" />
-                        <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#f3eee7] via-[#f3eee7]/70 to-transparent lg:hidden" />
+                        <div className="absolute inset-x-0 bottom-0 h-[38vh] bg-gradient-to-t from-[#f3eee7] via-[#f3eee7]/68 to-transparent lg:hidden" />
                     </div>
 
-                    <div className="relative z-10 w-full pb-8 text-center text-white lg:max-w-[20rem] lg:pb-2 lg:text-left">
+                    <div className="relative z-10 hidden w-full pb-2 text-white lg:block lg:max-w-[20rem] lg:text-left">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.44em] text-white/72">Privado</p>
                         <h1 className="mt-4 text-4xl font-semibold leading-[0.9] tracking-[-0.05em] sm:text-5xl lg:text-6xl">
                             170126
@@ -69,9 +114,21 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, isSigningIn, errorMes
                     </div>
                 </section>
 
-                <section className="relative flex items-center justify-center px-6 py-8 sm:px-8 lg:px-10 lg:py-10">
-                    <div className="w-full max-w-[34rem] rounded-[36px] border border-black/5 bg-white/72 p-3 shadow-[0_30px_90px_rgba(32,24,16,0.08)] backdrop-blur-2xl">
+                <section className="relative z-10 flex min-h-screen items-end justify-center px-4 py-4 sm:px-6 sm:py-6 lg:min-h-0 lg:items-center lg:px-10 lg:py-10">
+                    <div className="w-full rounded-[32px] border border-white/35 bg-white/70 p-3 shadow-[0_30px_90px_rgba(32,24,16,0.16)] backdrop-blur-[18px] sm:max-w-none lg:max-w-[34rem] lg:rounded-[36px] lg:border-black/5 lg:bg-white/72">
                         <form onSubmit={handleSubmit} className="rounded-[28px] border border-black/6 bg-white/88 p-5 md:p-6">
+                            <div className="mb-8 text-center lg:hidden">
+                                <p className="text-[10px] font-semibold uppercase tracking-[0.44em] text-neutral-500">Privado</p>
+                                <h1 className="mt-4 text-4xl font-semibold leading-[0.9] tracking-[-0.05em] text-neutral-950">
+                                    170126
+                                    <br />
+                                    Vielha
+                                </h1>
+                                <p className="mt-3 text-sm tracking-[0.18em] text-neutral-600">
+                                    Val d&apos;Aran
+                                </p>
+                            </div>
+
                             <div className="group flex items-center gap-3 rounded-[24px] border border-neutral-200/80 bg-[#fbfaf7] px-5 py-2.5 transition focus-within:border-neutral-950/40 focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(17,17,17,0.04)]">
                                 <div className="h-2 w-2 rounded-full bg-neutral-300 transition group-focus-within:bg-[#b76e4d]" />
                                 <input
@@ -90,7 +147,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, isSigningIn, errorMes
                                 <button
                                     type="submit"
                                     disabled={isSigningIn}
-                                    className="inline-flex min-w-[9.5rem] items-center justify-center gap-2.5 rounded-full bg-neutral-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-950 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-70"
+                                    className="inline-flex w-full items-center justify-center gap-2.5 rounded-full bg-neutral-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-950 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-70 lg:min-w-[9.5rem] lg:w-auto"
                                 >
                                     {isSigningIn ? (
                                         <>

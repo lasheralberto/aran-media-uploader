@@ -3,7 +3,7 @@ import type { User } from 'firebase/auth';
 import AuthScreen from './components/AuthScreen';
 import Gallery from './components/Gallery';
 import Spinner from './components/Spinner';
-import { isAdminSession, signInToGallery, signOutCurrentUser, subscribeToAuthChanges } from './services/firebase';
+import { GALLERY_ACCESS_LABEL, isAdminSession, signInToGallery, signOutCurrentUser, subscribeToAuthChanges } from './services/firebase';
 
 const getAuthErrorMessage = (error: unknown): string => {
     const code = typeof error === 'object' && error !== null && 'code' in error
@@ -88,7 +88,9 @@ const App: React.FC = () => {
         );
     }
 
-    const currentUserName = currentUser.displayName || 'Invitado';
+    const currentUserName = currentUser.displayName === GALLERY_ACCESS_LABEL
+        ? ''
+        : (currentUser.displayName || 'Invitado');
 
     return (
         <Gallery

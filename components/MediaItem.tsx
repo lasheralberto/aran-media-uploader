@@ -1,7 +1,8 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MediaFile } from '../types';
 import { CheckIcon } from './Icons';
+import Spinner from './Spinner';
 
 interface MediaItemProps {
     file: MediaFile;
@@ -9,13 +10,29 @@ interface MediaItemProps {
     isSelectionMode: boolean;
     isSelected: boolean;
     onLongPress: () => void;
+    isBackgroundPreloaded: boolean;
+    onImageReady: () => void;
 }
 
-const MediaItem: React.FC<MediaItemProps> = ({ file, onClick, isSelectionMode, isSelected, onLongPress }) => {
+const MediaItem: React.FC<MediaItemProps> = ({ file, onClick, isSelectionMode, isSelected, onLongPress, isBackgroundPreloaded, onImageReady }) => {
     const [isLoaded, setIsLoaded] = useState(false);
     const timerRef = useRef<number | null>(null);
     const isLongPress = useRef(false);
+    const imageRef = useRef<HTMLImageElement | null>(null);
     const imageSource = file.previewUrl ?? file.url;
+    const shouldShowPreloadIndicator = file.type === 'image';
+
+    useEffect(() => {
+        if (file.type !== 'image') {
+            return;
+        }
+
+        const currentImage = imageRef.current;
+        if (currentImage?.complete) {
+            setIsLoaded(true);
+            onImageReady();
+        }
+    }, [file.type, imageSource, onImageReady]);
 
     const handleInteractionStart = () => {
         isLongPress.current = false;
@@ -37,6 +54,11 @@ const MediaItem: React.FC<MediaItemProps> = ({ file, onClick, isSelectionMode, i
         }
     };
 
+    const handleImageLoad = () => {
+        setIsLoaded(true);
+        onImageReady();
+    };
+
 
     return (
         <div 
@@ -51,13 +73,14 @@ const MediaItem: React.FC<MediaItemProps> = ({ file, onClick, isSelectionMode, i
         >
             {file.type === 'image' ? (
                 <img 
+                    ref={imageRef}
                     src={imageSource} 
                     alt={file.name} 
                     className={`h-full w-full object-cover transition duration-300 ease-out ${isLoaded ? 'opacity-100' : 'opacity-0'} ${isSelectionMode ? '' : 'group-hover:brightness-[0.92]'}`}
                     loading="lazy"
                     decoding="async"
                     fetchPriority="low"
-                    onLoad={() => setIsLoaded(true)}
+                    onLoad={handleImageLoad}
                 />
             ) : (
                 <video 
@@ -77,6 +100,16 @@ const MediaItem: React.FC<MediaItemProps> = ({ file, onClick, isSelectionMode, i
                         </div>
                     )}
                 </>
+            )}
+
+            {shouldShowPreloadIndicator && (
+                <div className="pointer-events-none absolute bottom-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-black/55 backdrop-blur-sm">
+                    {isBackgroundPreloaded ? (
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    ) : (
+                        <Spinner className="h-2.5 w-2.5 text-white" />
+                    )}
+                </div>
             )}
             
             {isSelectionMode && (

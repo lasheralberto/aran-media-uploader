@@ -85,6 +85,15 @@ const buildBatchZipName = () => {
     return `imagenes-full-${timestamp}.zip`;
 };
 
+const buildPreloadStatusMap = (files: MediaFile[], skipBackgroundPreload: boolean): Record<string, boolean> => (
+    files.reduce<Record<string, boolean>>((statusMap, file) => {
+        statusMap[file.name] = file.type !== 'image' || skipBackgroundPreload;
+        return statusMap;
+    }, {})
+);
+
+const getGalleryImageSource = (file: MediaFile): string => file.previewUrl ?? file.url;
+
 
 interface GalleryProps {
     userId: string;
@@ -125,6 +134,20 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
     const [selectedItems, setSelectedItems] = useState<string[]>([]);
     const [selectedMediaIndex, setSelectedMediaIndex] = useState<number | null>(null);
     const lastPreloadedMediaIndexRef = useRef(0);
+    const [preloadStatusByFileName, setPreloadStatusByFileName] = useState<Record<string, boolean>>({});
+
+    const markFileAsPreloaded = useCallback((fileName: string) => {
+        setPreloadStatusByFileName(prev => {
+            if (prev[fileName]) {
+                return prev;
+            }
+
+            return {
+                ...prev,
+                [fileName]: true,
+            };
+        });
+    }, []);
 
     const selectedMedia = selectedMediaIndex !== null ? mediaFiles[selectedMediaIndex] ?? null : null;
     const destinationTabs = [null, ...folders];
@@ -159,12 +182,14 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
 
     const fetchMedia = useCallback(async (token?: string) => {
         const isInitialFetch = !token;
+        const skipBackgroundPreload = shouldSkipBackgroundPreload();
 
         if (isInitialFetch) {
             setIsLoading(true);
             setMediaFiles([]);
             setHasMore(true);
             lastPreloadedMediaIndexRef.current = 0;
+            setPreloadStatusByFileName({});
         } else {
             setIsLoadingMore(true);
         }
@@ -172,6 +197,19 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
         const { files, nextPageToken: newToken } = await listMediaFiles(userId, activeFolder, token);
 
         setMediaFiles(prev => isInitialFetch ? files : [...prev, ...files]);
+        setPreloadStatusByFileName(prev => {
+            if (isInitialFetch) {
+                return buildPreloadStatusMap(files, skipBackgroundPreload);
+            }
+
+            const nextStatus = { ...prev };
+            files.forEach(file => {
+                if (!(file.name in nextStatus)) {
+                    nextStatus[file.name] = file.type !== 'image' || skipBackgroundPreload;
+                }
+            });
+            return nextStatus;
+        });
         setNextPageToken(newToken);
         if (!newToken) {
             setHasMore(false);
@@ -218,7 +256,10 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
                     }
 
                     if (nextFile.type === 'image') {
-                        await preloadImageInBackground(nextFile.url);
+                        await preloadImageInBackground(getGalleryImageSource(nextFile));
+                        if (!isCancelled) {
+                            markFileAsPreloaded(nextFile.name);
+                        }
                     }
 
                     lastPreloadedMediaIndexRef.current = Math.max(lastPreloadedMediaIndexRef.current, nextIndex + 1);
@@ -236,7 +277,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
             isCancelled = true;
             window.clearTimeout(timeoutId);
         };
-    }, [mediaFiles]);
+    }, [markFileAsPreloaded, mediaFiles]);
 
     useEffect(() => {
         if (!isSelectionModeActive || selectedItems.length > 0) {
@@ -621,6 +662,8 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
                             selectionMode={isSelectionModeActive}
                             selectedItems={selectedItems}
                             onLongPress={handleLongPress}
+                            preloadStatusByFileName={preloadStatusByFileName}
+                            onImageReady={markFileAsPreloaded}
                         />
 
                         {isLoadingMore && (

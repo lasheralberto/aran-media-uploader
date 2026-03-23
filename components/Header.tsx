@@ -117,7 +117,9 @@ const Header: React.FC<HeaderProps> = ({
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <h1 className="truncate text-lg font-semibold text-neutral-900">thebodorriogallery</h1>
-                    <p className="text-sm text-neutral-500">Alberto y Mariona · {currentUserName}</p>
+                    <p className="text-sm text-neutral-500">
+                      Alberto y Mariona{currentUserName ? ` · ${currentUserName}` : ''}
+                    </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <button
@@ -236,7 +238,7 @@ const Header: React.FC<HeaderProps> = ({
                 </div>
 
                 <div className="max-w-xl space-y-1.5 text-sm leading-6 text-neutral-700">
-                  <p className="font-semibold text-neutral-900">Boda de Alberto y Mariona</p>
+                  <p className="font-semibold text-neutral-900">Alberto y Mariona</p>
                   <p>170126</p>
                   <p className="text-neutral-500">#TheBodorrioGallery #AlbertoYMariona</p>
                 </div>

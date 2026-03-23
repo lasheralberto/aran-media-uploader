@@ -13,9 +13,11 @@ interface MediaGridProps {
     selectionMode: boolean;
     selectedItems: string[];
     onLongPress: (file: MediaFile) => void;
+    preloadStatusByFileName: Record<string, boolean>;
+    onImageReady: (fileName: string) => void;
 }
 
-const MediaGrid: React.FC<MediaGridProps> = ({ mediaFiles, isLoading, onItemClick, lastElementRef, hasMore, selectionMode, selectedItems, onLongPress }) => {
+const MediaGrid: React.FC<MediaGridProps> = ({ mediaFiles, isLoading, onItemClick, lastElementRef, hasMore, selectionMode, selectedItems, onLongPress, preloadStatusByFileName, onImageReady }) => {
     if (isLoading) {
         return (
             <div className="grid grid-cols-3 gap-[2px] border-y border-neutral-200 bg-neutral-200 md:gap-1 md:rounded-[4px] md:border md:bg-transparent">
@@ -47,6 +49,8 @@ const MediaGrid: React.FC<MediaGridProps> = ({ mediaFiles, isLoading, onItemClic
                         isSelectionMode={selectionMode}
                         isSelected={selectedItems.includes(file.name)}
                         onLongPress={() => onLongPress(file)}
+                        isBackgroundPreloaded={preloadStatusByFileName[file.name] ?? file.type !== 'image'}
+                        onImageReady={() => onImageReady(file.name)}
                     />
                 );
 
