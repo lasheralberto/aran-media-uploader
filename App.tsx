@@ -3,7 +3,7 @@ import type { User } from 'firebase/auth';
 import AuthScreen from './components/AuthScreen';
 import Gallery from './components/Gallery';
 import Spinner from './components/Spinner';
-import { ADMIN_EMAIL, signInToGallery, signOutCurrentUser, subscribeToAuthChanges } from './services/firebase';
+import { isAdminSession, signInToGallery, signOutCurrentUser, subscribeToAuthChanges } from './services/firebase';
 
 const getAuthErrorMessage = (error: unknown): string => {
     const code = typeof error === 'object' && error !== null && 'code' in error
@@ -11,19 +11,24 @@ const getAuthErrorMessage = (error: unknown): string => {
         : '';
 
     switch (code) {
-        case 'auth/missing-email':
-            return 'Introduce un email para identificarte en la galeria.';
-        case 'auth/invalid-admin-password':
-            return 'La password de administrador no es correcta.';
+        case 'auth/missing-password':
+            return 'Introduce la clave para entrar en la galeria.';
+        case 'auth/invalid-gallery-password':
+            return 'La clave no coincide con la configurada en la galeria.';
+        case 'auth/master-password-not-configured':
+            return 'No hay ninguna MasterPass configurada en la coleccion config de Firestore.';
+        case 'permission-denied':
+            return 'Firestore no permite leer la coleccion config. Revisa las reglas de acceso.';
         case 'auth/operation-not-allowed':
             return 'El proveedor Anonymous no esta habilitado en Firebase Authentication.';
         default:
-            return 'No se pudo iniciar sesion. Revisa la configuracion de Firebase Authentication.';
+            return 'No se pudo iniciar sesion. Revisa la configuracion de Firestore y Firebase Authentication.';
     }
 };
 
 const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [isAdmin, setIsAdmin] = useState(false);
     const [isAuthReady, setIsAuthReady] = useState(false);
     const [isSigningIn, setIsSigningIn] = useState(false);
     const [authError, setAuthError] = useState<string | null>(null);
@@ -31,18 +36,20 @@ const App: React.FC = () => {
     useEffect(() => {
         const unsubscribe = subscribeToAuthChanges((user) => {
             setCurrentUser(user);
+            setIsAdmin(isAdminSession(user));
             setIsAuthReady(true);
         });
 
         return unsubscribe;
     }, []);
 
-    const handleSignIn = async (email: string, password: string) => {
+    const handleSignIn = async (password: string) => {
         setIsSigningIn(true);
         setAuthError(null);
 
         try {
-            await signInToGallery(email, password);
+            const user = await signInToGallery(password);
+            setIsAdmin(isAdminSession(user));
         } catch (error) {
             console.error('Error signing in to gallery:', error);
             setAuthError(getAuthErrorMessage(error));
@@ -81,8 +88,7 @@ const App: React.FC = () => {
         );
     }
 
-    const currentUserName = currentUser.displayName || currentUser.email || 'Invitado';
-    const isAdmin = currentUserName.trim().toLowerCase() === ADMIN_EMAIL;
+    const currentUserName = currentUser.displayName || 'Invitado';
 
     return (
         <Gallery

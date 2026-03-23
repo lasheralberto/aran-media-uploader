@@ -9,6 +9,11 @@ import {
   type User,
 } from "firebase/auth";
 import {
+  collection,
+  getDocs,
+  getFirestore,
+} from "firebase/firestore";
+import {
   getStorage,
   ref,
   uploadBytes,
@@ -48,10 +53,13 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
 const storage = getStorage(app);
 
-export const ADMIN_EMAIL = 'admin@albertoymariona.com';
-const ADMIN_PASSWORD = 'bodorrio';
+export const GALLERY_ACCESS_LABEL = 'Acceso maestro';
+const GALLERY_ADMIN_LABEL = 'Acceso admin';
+const USER_ROLE_TOKEN = 'role:user';
+const ADMIN_ROLE_TOKEN = 'role:admin';
 
 const MAX_PARALLEL_UPLOADS = 3;
 const MAX_UPLOAD_RETRIES = 4;
@@ -83,6 +91,7 @@ interface UploadProgressUpdate {
 }
 
 const HIDDEN_STORAGE_FILE_PREFIX = '.';
+let galleryPasswordsPromise: Promise<{ masterPass: string | null; adminPass: string | null }> | null = null;
 
 const sanitizeFileName = (name: string) => name.replace(/[\/\\#?]/g, '_');
 
@@ -320,22 +329,71 @@ export const subscribeToAuthChanges = (callback: (user: User | null) => void) =>
   onAuthStateChanged(auth, callback)
 );
 
-export const signInToGallery = async (email: string, password: string): Promise<User> => {
-  const normalizedEmail = email.trim().toLowerCase();
+const getGalleryPasswords = async (): Promise<{ masterPass: string | null; adminPass: string | null }> => {
+  if (!galleryPasswordsPromise) {
+    galleryPasswordsPromise = getDocs(collection(db, 'config'))
+      .then(snapshot => {
+        let masterPass: string | null = null;
+        let adminPass: string | null = null;
 
-  if (!normalizedEmail) {
-    throw { code: 'auth/missing-email' };
+        for (const docSnapshot of snapshot.docs) {
+          const data = docSnapshot.data() as { MasterPass?: unknown; adminPass?: unknown };
+
+          if (!masterPass && typeof data.MasterPass === 'string' && data.MasterPass.trim().length > 0) {
+            masterPass = data.MasterPass.trim();
+          }
+
+          if (!adminPass && typeof data.adminPass === 'string' && data.adminPass.trim().length > 0) {
+            adminPass = data.adminPass.trim();
+          }
+        }
+
+        if (!masterPass && !adminPass) {
+          throw { code: 'auth/master-password-not-configured' };
+        }
+
+        return { masterPass, adminPass };
+      })
+      .catch(error => {
+        galleryPasswordsPromise = null;
+        throw error;
+      });
   }
 
-  if (normalizedEmail === ADMIN_EMAIL && password !== ADMIN_PASSWORD) {
-    throw { code: 'auth/invalid-admin-password' };
+  return galleryPasswordsPromise;
+};
+
+export const isAdminSession = (user: User | null): boolean => user?.photoURL === ADMIN_ROLE_TOKEN;
+
+export const signInToGallery = async (password: string): Promise<User> => {
+  const normalizedPassword = password.trim();
+
+  if (!normalizedPassword) {
+    throw { code: 'auth/missing-password' };
   }
+
+  const { masterPass, adminPass } = await getGalleryPasswords();
+
+  let nextDisplayName = GALLERY_ACCESS_LABEL;
+  let nextRoleToken = USER_ROLE_TOKEN;
+
+  if (masterPass && normalizedPassword === masterPass) {
+    nextDisplayName = GALLERY_ACCESS_LABEL;
+    nextRoleToken = USER_ROLE_TOKEN;
+  } else if (adminPass && normalizedPassword === adminPass) {
+    nextDisplayName = GALLERY_ADMIN_LABEL;
+    nextRoleToken = ADMIN_ROLE_TOKEN;
+  } else {
+    throw { code: 'auth/invalid-gallery-password' };
+  }
+
 
   const result = await signInAnonymously(auth);
 
-  if (result.user.displayName !== normalizedEmail) {
+  if (result.user.displayName !== nextDisplayName || result.user.photoURL !== nextRoleToken) {
     await updateProfile(result.user, {
-      displayName: normalizedEmail,
+      displayName: nextDisplayName,
+      photoURL: nextRoleToken,
     });
   }
 
@@ -541,6 +599,17 @@ export const getProfileImageUrl = async (userId: string): Promise<string | null>
     return url;
   } catch (error) {
     console.warn(`Profile image 'profileImages/${userId}/profile.jpg' not found in Firebase Storage.`);
+    return null;
+  }
+};
+
+export const getLandingImageUrl = async (): Promise<string | null> => {
+  try {
+    const fileRef = ref(storage, 'landing/landing.jpg');
+    const url = await getDownloadURL(fileRef);
+    return url;
+  } catch (error) {
+    console.warn("Landing image 'landing/landing.jpg' not found in Firebase Storage.");
     return null;
   }
 };
