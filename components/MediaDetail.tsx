@@ -192,14 +192,14 @@ const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDele
                                 <div className="flex h-full w-full items-center justify-center rounded-full bg-white text-xs font-semibold text-neutral-900">AM</div>
                             </div>
                             <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-semibold text-neutral-900">thebodorriogallery</p>
+                                <p className="truncate text-sm font-semibold text-neutral-900">AM2026</p>
                                 <p className="truncate text-xs text-neutral-500">Boda de Alberto y Mariona</p>
                             </div>
                         </div>
 
                         <div className="hidden flex-1 px-5 py-5 md:block">
                             <p className="text-sm font-semibold text-neutral-900">{file.name}</p>
-                            <p className="mt-2 text-sm leading-6 text-neutral-600">Recuerdo compartido en la galería colaborativa de la boda. Puedes descargarlo o compartirlo directamente desde aquí.</p>
+                            <p className="mt-2 text-sm leading-6 text-neutral-600">Puedes descargar o compartir directamente desde aquí.</p>
                         </div>
 
                         <div className="border-t border-neutral-200 bg-white/98 px-4 py-3 backdrop-blur md:border-t md:px-5 md:py-4">
@@ -224,12 +224,7 @@ const MediaDetail: React.FC<MediaDetailProps> = ({ file, onBack, isAdmin, onDele
                             </div>
 
                             <div className="flex items-center gap-4 text-neutral-900">
-                                <button className="transition hover:text-rose-500" aria-label="Me gusta">
-                                    <HeartIcon className="h-6 w-6" />
-                                </button>
-                                <button className="transition hover:text-neutral-500" aria-label="Comentarios">
-                                    <CommentIcon className="h-6 w-6" />
-                                </button>
+                                
                                 <button 
                                     onClick={handleShare} 
                                     disabled={isSharing}

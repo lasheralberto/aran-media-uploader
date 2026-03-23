@@ -116,7 +116,7 @@ const Header: React.FC<HeaderProps> = ({
               <div className="flex flex-col gap-3 md:hidden">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <h1 className="truncate text-lg font-semibold text-neutral-900">thebodorriogallery</h1>
+                    <h1 className="truncate text-lg font-semibold text-neutral-900">AM2026</h1>
                     <p className="text-sm text-neutral-500">
                       Alberto y Mariona{currentUserName ? ` · ${currentUserName}` : ''}
                     </p>
@@ -175,15 +175,15 @@ const Header: React.FC<HeaderProps> = ({
                 </div>
 
                 <div className="space-y-1.5 text-sm leading-5 text-neutral-700">
-                                   
-                  <p className="text-neutral-500">#AlbertoYMariona #TheBodorrioGallery</p>
+                  <p className="text-neutral-700">Mantén pulsado para seleccionar las fotos que quieres descargar :) </p>
+                  <p className="text-neutral-500">#JustMarried #GraciasAmigos #GraciasFamilia</p>
                 </div>
               </div>
 
               <div className="hidden md:flex md:flex-col md:gap-5">
                 <div className="flex items-center gap-6">
                   <div>
-                    <h1 className="text-[28px] font-light tracking-tight text-neutral-900">thebodorriogallery</h1>
+                    <h1 className="text-[28px] font-light tracking-tight text-neutral-900">AM2026</h1>
                   </div>
                   <div className="flex items-center gap-3">
                     {isAdmin && (
@@ -237,7 +237,8 @@ const Header: React.FC<HeaderProps> = ({
                 <div className="max-w-xl space-y-1.5 text-sm leading-6 text-neutral-700">
                   <p className="font-semibold text-neutral-900">Alberto y Mariona</p>
                   <p>170126</p>
-                  <p className="text-neutral-500">#TheBodorrioGallery #AlbertoYMariona</p>
+                  <p>Mantén pulsado para seleccionar las fotos que quieres descargar :)</p>
+                  <p className="text-neutral-500">#JustMarried #GraciasAmigos #GraciasFamilia </p>
                 </div>
               </div>
             </div>

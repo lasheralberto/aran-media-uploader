@@ -696,7 +696,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
                 </div>
             )}
 
-            {!selectedMedia && !isSelectionModeActive && isAdmin && (
+            {!selectedMedia && !isSelectionModeActive && (
                 <>
                     <GalleryLoadStatus
                         loadedCount={mediaFiles.length}
@@ -705,6 +705,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
                         hasMore={hasMore}
                         onLoadMore={loadMoreMedia}
                     />
+                    {isAdmin && (
                     <div className="fixed bottom-5 right-5 z-20 md:bottom-8 md:right-8">
                         <button
                             onClick={handleUploadClick}
@@ -715,6 +716,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
                             <AddIcon className="h-8 w-8 md:h-9 md:w-9" />
                         </button>
                     </div>
+                    )}
                 </>
             )}
 
@@ -723,7 +725,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
                     <button
                         onClick={handleDownloadSelected}
                         disabled={isDownloading}
-                        className="pointer-events-auto inline-flex min-h-14 items-center gap-3 rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(17,17,17,0.18)] transition hover:scale-[1.02] hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 md:min-h-16 md:rounded-full md:px-6"
+                        className="pointer-events-auto inline-flex min-h-14 items-center gap-3 rounded-2xl bg-[linear-gradient(135deg,#e11d48_0%,#f43f5e_42%,#fb7185_100%)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_32px_rgba(244,63,94,0.28)] transition hover:scale-[1.02] hover:brightness-[0.97] focus:outline-none focus:ring-2 focus:ring-rose-500 focus:ring-offset-2 disabled:cursor-wait disabled:opacity-60 md:min-h-16 md:rounded-full md:px-6"
                         aria-label={isDownloading ? 'Descarga en progreso' : `Descargar ${selectedItems.length} archivo${selectedItems.length > 1 ? 's' : ''}`}
                     >
                         {isDownloading ? (
