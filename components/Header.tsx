@@ -231,10 +231,7 @@ const Header: React.FC<HeaderProps> = ({
                     <span className="font-semibold text-neutral-900">150</span>
                     <span className="ml-1">invitados</span>
                   </div>
-                  <div>
-                    <span className="font-semibold text-neutral-900">1.2k</span>
-                    <span className="ml-1">me gusta</span>
-                  </div>
+                  
                 </div>
 
                 <div className="max-w-xl space-y-1.5 text-sm leading-6 text-neutral-700">

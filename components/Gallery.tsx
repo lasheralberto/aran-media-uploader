@@ -5,7 +5,7 @@ import { MediaFile, UploadBatchState, UploadBatchSummary } from '../types';
 import Header from './Header';
 import MediaGrid from './MediaGrid';
 import UploadProgress from './UploadProgress';
-import { AddIcon, DownloadIcon, GridIcon, TrashIcon } from './Icons';
+import { AddIcon, DownloadIcon, GridIcon, HeartIcon, TrashIcon } from './Icons';
 import MediaDetail from './MediaDetail';
 import Spinner from './Spinner';
 import ConfirmModal from './ConfirmModal';
@@ -29,6 +29,8 @@ const getDestinationTabLabel = (folder: string | null): string => {
 
     return DESTINATION_TAB_LABELS[folder] ?? folder;
 };
+
+const getDestinationTabKey = (folder: string | null): string => folder ?? ROOT_TAB_KEY;
 
 const shouldSkipBackgroundPreload = (): boolean => {
     if (typeof navigator === 'undefined') {
@@ -104,7 +106,6 @@ interface GalleryProps {
 
 const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onSignOut }) => {
     const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
-    const [totalMediaCount, setTotalMediaCount] = useState<number>(0);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [isUploading, setIsUploading] = useState<boolean>(false);
     const [uploadState, setUploadState] = useState<UploadBatchState | null>(null);
@@ -115,6 +116,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
     const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
 
     const [folders, setFolders] = useState<string[]>([]);
+    const [tabCounts, setTabCounts] = useState<Record<string, number>>({});
     const [activeFolder, setActiveFolder] = useState<string | null>(null);
     const [isCreatingFolder, setIsCreatingFolder] = useState<boolean>(false);
     const [isFolderManagerVisible, setIsFolderManagerVisible] = useState<boolean>(true);
@@ -151,6 +153,8 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
 
     const selectedMedia = selectedMediaIndex !== null ? mediaFiles[selectedMediaIndex] ?? null : null;
     const destinationTabs = [null, ...folders];
+    const totalMediaCount = (Object.values(tabCounts) as number[]).reduce((sum, count) => sum + count, 0);
+    const activeTabCount = tabCounts[getDestinationTabKey(activeFolder)] ?? 0;
 
     useEffect(() => {
         const SCROLL_THRESHOLD = 10;
@@ -170,15 +174,22 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
-    const refreshTotalMediaCount = useCallback(async () => {
-        const total = await countMediaFiles(userId, activeFolder);
-        setTotalMediaCount(total);
-    }, [activeFolder, userId]);
-
-    const refreshFolders = useCallback(async () => {
+    const refreshFolders = useCallback(async (): Promise<string[]> => {
         const nextFolders = await listMediaFolders(userId);
         setFolders(nextFolders);
+        return nextFolders;
     }, [userId]);
+
+    const refreshTabCounts = useCallback(async (folderList: string[] = folders) => {
+        const countEntries = await Promise.all(
+            [null, ...folderList].map(async (folder) => {
+                const total = await countMediaFiles(userId, folder);
+                return [getDestinationTabKey(folder), total] as const;
+            })
+        );
+
+        setTabCounts(Object.fromEntries(countEntries));
+    }, [folders, userId]);
 
     const fetchMedia = useCallback(async (token?: string) => {
         const isInitialFetch = !token;
@@ -220,12 +231,14 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
 
     useEffect(() => {
         fetchMedia();
-        refreshTotalMediaCount();
-    }, [fetchMedia, refreshTotalMediaCount]);
+    }, [fetchMedia]);
 
     useEffect(() => {
-        void refreshFolders();
-    }, [refreshFolders]);
+        void (async () => {
+            const nextFolders = await refreshFolders();
+            await refreshTabCounts(nextFolders);
+        })();
+    }, [refreshFolders, refreshTabCounts]);
 
     useEffect(() => {
         if (mediaFiles.length === 0 || shouldSkipBackgroundPreload()) {
@@ -330,7 +343,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
             setIsUploading,
             setUploadState,
             async (summary: UploadBatchSummary) => {
-                await Promise.all([fetchMedia(), refreshTotalMediaCount()]);
+                await Promise.all([fetchMedia(), refreshTabCounts()]);
 
                 if (summary.failedFiles > 0) {
                     alert(`Subida completada con incidencias: ${summary.successfulFiles} ok, ${summary.failedFiles} fallidos.`);
@@ -483,10 +496,10 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
         try {
             await deleteFileFromAllLocations(fileToDelete, userId, activeFolder);
             setMediaFiles(prev => prev.filter(file => file.name !== fileToDelete));
-            setTotalMediaCount(prev => Math.max(0, prev - 1));
             if (selectedMedia?.name === fileToDelete) {
                 setSelectedMediaIndex(null);
             }
+            await refreshTabCounts();
             alert('Archivo eliminado correctamente de todas las ubicaciones.');
         } catch (error) {
             console.error('Error deleting file:', error);
@@ -519,12 +532,12 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
             );
             await Promise.all(deletePromises);
             setMediaFiles(prev => prev.filter(file => !selectedItems.includes(file.name)));
-            setTotalMediaCount(prev => Math.max(0, prev - selectedItems.length));
             if (selectedMedia && selectedItems.includes(selectedMedia.name)) {
                 setSelectedMediaIndex(null);
             }
             setIsSelectionModeActive(false);
             setSelectedItems([]);
+            await refreshTabCounts();
             alert(`${selectedItems.length} archivo(s) eliminado(s) correctamente de todas las ubicaciones.`);
         } catch (error) {
             console.error('Error deleting files:', error);
@@ -540,7 +553,8 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
 
         try {
             const createdFolder = await createMediaFolder(userId, folderName);
-            await refreshFolders();
+            const nextFolders = await refreshFolders();
+            await refreshTabCounts(nextFolders);
             setActiveFolder(createdFolder);
             alert(`Carpeta ${createdFolder} creada correctamente.`);
         } catch (error) {
@@ -549,7 +563,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
         } finally {
             setIsCreatingFolder(false);
         }
-    }, [refreshFolders, userId]);
+    }, [refreshFolders, refreshTabCounts, userId]);
 
     return (
         <div className="min-h-screen bg-white text-neutral-950">
@@ -591,6 +605,8 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
                                     {destinationTabs.map((folder) => {
                                         const isActive = activeFolder === folder;
                                         const label = getDestinationTabLabel(folder);
+                                        const tabCount = tabCounts[getDestinationTabKey(folder)] ?? 0;
+                                        const TabIcon = folder === null ? HeartIcon : GridIcon;
 
                                         return (
                                             <button
@@ -600,8 +616,13 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
                                                 className={`group relative inline-flex min-w-[110px] flex-1 shrink-0 items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition md:min-w-[140px] md:flex-none ${isActive ? 'text-neutral-950' : 'text-neutral-400 hover:text-neutral-700'}`}
                                                 aria-pressed={isActive}
                                             >
-                                                <GridIcon className={`h-4 w-4 transition ${isActive ? 'text-neutral-950' : 'text-neutral-300 group-hover:text-neutral-500'}`} />
-                                                <span className="truncate">{label}</span>
+                                                <TabIcon className={`h-4 w-4 shrink-0 transition ${isActive ? 'text-neutral-950' : 'text-neutral-300 group-hover:text-neutral-500'}`} />
+                                                <span className="truncate">
+                                                    {label}
+                                                    <span className={`ml-1 text-[12px] font-medium ${isActive ? 'text-neutral-500' : 'text-neutral-400 group-hover:text-neutral-500'}`}>
+                                                        ({tabCount})
+                                                    </span>
+                                                </span>
                                                 <span className={`absolute inset-x-3 bottom-0 h-[2px] rounded-full transition ${isActive ? 'bg-neutral-950' : 'bg-transparent group-hover:bg-neutral-300'}`} />
                                             </button>
                                         );
@@ -679,7 +700,7 @@ const Gallery: React.FC<GalleryProps> = ({ userId, currentUserName, isAdmin, onS
                 <>
                     <GalleryLoadStatus
                         loadedCount={mediaFiles.length}
-                        totalCount={totalMediaCount}
+                        totalCount={activeTabCount}
                         isLoadingMore={isLoadingMore}
                         hasMore={hasMore}
                         onLoadMore={loadMoreMedia}
