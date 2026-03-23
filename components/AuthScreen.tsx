@@ -147,7 +147,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onSignIn, isSigningIn, errorMes
                                     type="password"
                                     value={password}
                                     onChange={(event) => setPassword(event.target.value)}
-                                    placeholder="Clave"
+                                    placeholder="Contraseña"
                                     className="h-11 w-full border-0 bg-transparent p-0 text-base tracking-[0.02em] text-neutral-950 outline-none placeholder:text-neutral-400"
                                     autoComplete="current-password"
                                     disabled={isSigningIn}
