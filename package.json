@@ -16,7 +16,6 @@
     "lru-cache": "^11.2.7",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "react-lazy-load": "^4.0.1",
     "sharp": "^0.34.5",
     "webworker": "^0.8.4"
   },
