@@ -17,6 +17,17 @@ Galeria privada para compartir fotos y videos con Firebase Storage.
 2. Habilita el proveedor Anonymous.
 3. Anade los dominios desde los que vayas a abrir la app en Authorized domains.
 4. Publica las reglas de Storage de este repositorio para exigir usuario autenticado.
+5. Añade un .env.local con las variables:
+
+  VITE_FIREBASE_API_KEY=yourkey
+  VITE_FIREBASE_AUTH_DOMAIN=yourkey
+  VITE_FIREBASE_PROJECT_ID=yourkey
+  VITE_FIREBASE_STORAGE_BUCKET=yourkey
+  VITE_FIREBASE_MESSAGING_SENDER_ID=yourkey
+  VITE_FIREBASE_APP_ID=yourkey
+
+#Configuración si haces deploy en vercel:
+1. Settings del proyecto -> Env vars: copy-paste de las variables del .env.local
 
 ## Configuracion de Firestore
 
